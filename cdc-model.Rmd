@@ -1,7 +1,7 @@
 ---
-title: "CDC Meltzer et al. Model Replication"
+title: "CDC Meltzer et al. Model Re-implementation"
 author: "Carl A. B. Pearson"
-date: "2014 OCT 10"
+date: "2014 NOV 04"
 output:
   html_document:
     self_contained: no
@@ -10,7 +10,6 @@ runtime: shiny
 ---
 ```{r, echo=FALSE}
 require(stats)
-#setwd("~/git/Ebola/CDC_model/")
 source("./cdc_model_functions.R")
 source("./cdc_plotting_functions.R")
 ```
@@ -40,7 +39,7 @@ renderPlot({
 })
 ```
 
-## Controls
+## Model Settings
 
 ```{r disease_params, echo=FALSE}
 with(defaults, {
@@ -165,7 +164,7 @@ treatment_demands <- reactive({
 })
 ```
 
-## Control Indicators
+## Model Settings Displays
 
 ```{r output_disease_params, echo=FALSE}
 renderPlot({
