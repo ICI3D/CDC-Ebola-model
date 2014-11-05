@@ -1,0 +1,199 @@
+---
+title: "CDC Meltzer et al. Model Replication"
+author: "Carl A. B. Pearson"
+date: "2014 OCT 10"
+output:
+  html_document:
+    self_contained: no
+    smart: no
+runtime: shiny
+---
+```{r, echo=FALSE}
+require(stats)
+#setwd("~/git/Ebola/CDC_model/")
+source("./cdc_model_functions.R")
+source("./cdc_plotting_functions.R")
+```
+
+## Results
+
+```{r run, echo=FALSE}
+res <- reactive({
+  simulate(list(
+    infective_treatments = defaults$infective_treatments,
+    treatment_durations = treatment_durations(),
+    simulation_duration = defaults$simulation_duration,
+    treatment_distribution = defaults$treatment_distribution,
+    introductions = defaults$introductions, 
+    treatment_transmissions = treatment_transmissions(),
+    hosp_proportions = treatment_demands(),
+    E_day_PDF = inc_distro()$pdf,
+    I_day_PDF = inf_distro()$pdf,
+    N0 = N0()
+  ))
+})
+renderPlot({
+  plotCumInc(res())
+})
+renderPlot({
+  plotBedOcc(res())
+})
+```
+
+## Controls
+
+```{r disease_params, echo=FALSE}
+with(defaults, {
+  inputPanel(
+    actionButton("reset_cdc", "Set to CDC defaults."),
+    actionButton("reset_leg", "Set to Legrand."),
+    actionButton("reset_eic", "Set to Eichner."),
+    numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01),
+    radioButtons("pdf_type","Distribution Specification: ", choices=c("manual","functional"), selected="functional", inline=T),
+    fixedRow(
+      column(3, numericInput("inc_period_max", "Incubation Period Max (days)?", min=1, max=30, value=inc_period_max, step=1),
+        conditionalPanel("input.pdf_type == 'manual'",
+          renderText("Incubation Day"),
+          renderUI(lapply(1:max(input$inc_period_max,1), function(day) numericInput(paste0("inc_pdf_",day), day, 0, min=0, max=1, step=0.001)))
+        ),
+        conditionalPanel("input.pdf_type == 'functional'",
+          selectInput("inc_model","Incubation Distribution", choices=choices, selected=inc_model),
+          numericInput("inc_period_mean", "Incubation Period Mean (days)?", min=0.01, max=25, value=inc_period_mean, step=0.01),
+          numericInput("inc_period_sd", "Incubation Period St.Dev (days)?", min=0.01, max=25, value=inc_period_sd, step=0.01)
+        )
+      ),
+      column(3, numericInput("inf_period_max", "Infectious Period Max (days)?", min=1, max=15, value=inf_period_max, step=1),
+        conditionalPanel("input.pdf_type == 'manual'",
+          renderText("Infection Day"),
+          renderUI(lapply(1:max(input$inf_period_max,1), function(day) numericInput(paste0("inf_pdf_",day), day, 0, min=0, max=1, step=0.001)))
+        ),
+        conditionalPanel("input.pdf_type == 'functional'",
+          selectInput("inf_model","Infection Period Distribution", choices=choices, selected=inf_model)
+          #numericInput("inf_period_mean", "Incubation Period Mean (days)?", min=0.01, max=25, value=inc_period_mean, step=0.01),
+          #numericInput("inf_period_sd", "Incubation Period St.Dev (days)?", min=0.01, max=25, value=inc_period_sd, step=0.01),   
+        )
+      ),
+      column(3, renderText("Verifications: "), renderText(paste0("Total Inc. Day P: ", sum(inf_distro()$pdf))), renderText(paste0("Total Inf. Day P: ",sum(inf_distro()$pdf))))
+    ),
+    fixedRow(
+      isolate(column(3,renderText("Infection pressure from..."), renderUI(
+        mapply(function(id, label, def) numericInput(paste0("tr_rate_",id), label, treatment_transmissions[id], min=0.01, step=0.01, value=def),
+          names(infective_treatments),
+    	    infective_treatments,
+          defaults$treatment_transmissions,
+          SIMPLIFY=F)
+      ))),
+      isolate(column(3,renderText("Hospital bed-days for..."), renderUI(
+        mapply(function(id, label, def) numericInput(paste0("tr_dur_",id), label, min=0, step=1, value=def),
+          names(infective_treatments),
+          infective_treatments,
+          defaults$treatment_durations,
+          SIMPLIFY=F)
+      ))),
+      isolate(column(3,renderText("Hospitalized Proportion for..."), isolate(renderUI(
+        mapply(function(id, label, def) numericInput(paste0("tr_prop_",id), label, min=0.01, step=0.01, max=1, value=def),
+          names(infective_treatments),
+          infective_treatments,
+          defaults$hosp_proportions,
+          SIMPLIFY=F)
+      ))))
+    )
+  )
+})
+```
+
+```{r pdfs, echo=FALSE}
+inc_distro <- reactive({
+  validate(need(!is.null(input$pdf_type),"PDF type not initialized."))
+  res <- if (input$pdf_type == "manual") {
+    temp <- sapply(1:max(input$inc_period_max,1), function(day) input[[paste0('inc_pdf_',day)]])
+    list(pdf=temp, cdf=c(0,cumsum(temp)), days=0:(length(temp)-1))
+  } else {
+    other_params <- switch(input$inc_model,
+      gamma =,
+      lnorm = list(period_mean = input$inc_period_mean, period_sd = input$inc_period_sd),
+      list()
+    )
+    do.call(distribution, c(list(model=input$inc_model, period_max=input$inc_period_max), other_params) )
+  }
+  validate(need(sum(res$pdf)==1,"Incubation day PDF does not sum to 1."))
+  return(res)
+})
+inf_distro <- reactive({
+  validate(need(!is.null(input$pdf_type),"PDF type not initialized."))
+  res <- if (input$pdf_type == "manual") {
+    temp <- sapply(1:max(input$inf_period_max,1), function(day) input[[paste0('inf_pdf_',day)]])
+    list(pdf=temp, cdf=c(0,cumsum(temp)), days=0:(length(temp)-1))
+  } else {
+    other_params <- switch(input$inf_model,
+      gamma =,
+      lnorm = list(period_mean = input$inf_period_mean, period_sd = input$inf_period_sd),
+      list()
+    )
+    do.call(distribution, c(list(model=input$inf_model, period_max=input$inf_period_max), other_params) )
+  }
+  
+  validate(need(sum(res$pdf)==1,"Infection day PDF does not sum to 1."))
+  return(res)
+})
+treatment_durations <- reactive({
+  res <- c(
+    hospital = input$tr_dur_hospital,
+    other_isolating_care = input$tr_dur_other_isolating_care,
+    non_isolating_care = input$tr_dur_non_isolating_care
+  )
+  validate(need(all(!sapply(res, is.null)), "not all treatment durations specified."))
+  return(res)
+})
+treatment_transmissions <- reactive({
+  res <- c(
+    hospital = input$tr_rate_hospital,
+    other_isolating_care = input$tr_rate_other_isolating_care,
+    non_isolating_care = input$tr_rate_non_isolating_care
+  )
+  validate(need(all(!sapply(res, is.null)), "not all treatment transmission rates specified."))
+  return(res)
+})
+treatment_demands <- reactive({
+  res <- c(
+    hospital = input$tr_prop_hospital,
+    other_isolating_care = input$tr_prop_other_isolating_care,
+    non_isolating_care = input$tr_prop_non_isolating_care
+  )
+  validate(need(all(!sapply(res, is.null)), "not all treatment hospitalization rates specified."))
+  return(res)
+})
+```
+
+## Control Indicators
+
+```{r output_disease_params, echo=FALSE}
+renderPlot({
+  validate(need(!is.null(input$inf_period_max), "Awaiting initialization of incfection period."))
+  plotIncubationCDF(inc_distro(), input$inf_period_max)
+})
+```
+
+```{r, echo=FALSE}
+N0 <- reactive({ input$N0 * 10^6 })
+with(defaults,{
+  observe({
+  }, priority = -1)
+  resetter <- function(definf, incmean, incsd, incmax, incmod) {
+    updateNumericInput(session, "inf_period_max", value=definf)
+    updateNumericInput(session, "inc_period_mean", value=incmean)
+    updateNumericInput(session, "inc_period_sd", value=incsd)
+    updateNumericInput(session, "inc_period_max", value=incmax)
+    updateSelectInput(session, "inc_model", selected=incmod)
+  }
+  observe(if (!is.null(input$reset_cdc) && (input$reset_cdc > 0)) resetter(6, 6.3,  3.31, 25, choices[1]), priority = -1)
+  observe(if (!is.null(input$reset_leg) && (input$reset_leg > 0)) resetter(6, 6.3,  4.31, 25, choices[1]), priority = -1)
+  observe(if (!is.null(input$reset_eic) && (input$reset_eic > 0)) resetter(6, 12.7, 3.31, 25, choices[1]), priority = -1)
+})
+```
+
+TODOs:
+
+ - turn on infectious period distributions
+ - turn on asymptomatic infection
+ - turn on mortality (and allow to affect governor)
