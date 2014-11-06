@@ -147,34 +147,27 @@ buildReactiveDistro <- function(prefix) {
   )
 }
 distros <- list(inc=buildReactiveDistro("inc"), inf=buildReactiveDistro("inf"))
-treatment_durations <- reactive({
-  ref <- paste0("tr_dur_", names(defaults$infective_treatments))
+treatment_parameter <- function(prefix, ...) {
+  ref <- paste0(prefix, names(defaults$infective_treatments))
   names(ref) <- names(defaults$infective_treatments)
-  res <- sapply(ref, function(what) input[[what]])  
-  validate(need(all(!sapply(res, is.null)), "not all treatment durations specified."))
-  validate(
-    need(all(res == floor(res)), "treatment durations not integers.")
-  )
-  return(res)
-})
-treatment_transmissions <- reactive({
-  res <- c(
-    hospital = input$tr_rate_hospital,
-    other_isolating_care = input$tr_rate_other_isolating_care,
-    non_isolating_care = input$tr_rate_non_isolating_care
-  )
-  validate(need(all(!sapply(res, is.null)), "not all treatment transmission rates specified."))
-  return(res)
-})
-treatment_demands <- reactive({
-  res <- c(
-    hospital = input$tr_prop_hospital,
-    other_isolating_care = input$tr_prop_other_isolating_care,
-    non_isolating_care = input$tr_prop_non_isolating_care
-  )
-  validate(need(all(!sapply(res, is.null)), "not all treatment hospitalization rates specified."))
-  return(res)
-})
+  return(reactive({
+    res <- sapply(ref, function(what) input[[what]])
+    validate(need(all(!sapply(res, is.null)), paste0(prefix," info incomplete.")))
+    for (test in list(...)) with(test, validate(need(f(res), msg)))
+    return(res)
+  }))
+}
+treatment_durations <- treatment_parameter('tr_dur_',
+  list(f=function(res) all(res == floor(res)), msg="treatment durations not integers."),
+  list(f=function(res) all(res >= 0), msg="treatment durations not positive.")
+)
+treatment_transmissions <- treatment_parameter('tr_rate_',
+  list(f=function(res) all(res >= 0), msg="treatment rates not positive.")
+)
+treatment_demands <- treatment_parameter('tr_prop_',
+  list(f=function(res) all((res >= 0) & (res <= 1)), msg="hospitalization proportions not in [0,1].")
+)
+N0 <- reactive({ input$N0 * 10^6 })
 ```
 
 ## Model Settings Displays
@@ -187,7 +180,6 @@ renderPlot({
 ```
 
 ```{r, echo=FALSE}
-N0 <- reactive({ input$N0 * 10^6 })
 resetter <- function(infpdf, incpdf, pdf_type="manual") {
   inc_max <- length(incpdf)
   inf_max <- length(infpdf)
