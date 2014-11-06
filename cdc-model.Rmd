@@ -84,7 +84,7 @@ with(defaults, {
           #numericInput("inf_period_sd", "Incubation Period St.Dev (days)?", min=0.01, max=25, value=inc_period_sd, step=0.01),   
         )
       ),
-      column(3, renderText("Verifications: "), renderText(paste0("Total Inc. Day P: ", sum(inf_distro()$pdf))), renderText(paste0("Total Inf. Day P: ",sum(inf_distro()$pdf))))
+      column(3, renderText("Verifications: "), renderText(paste0("Total Inc. Day P: ", sum(inc_distro()$pdf))), renderText(paste0("Total Inf. Day P: ",sum(inf_distro()$pdf))))
     ),
     fixedRow(
       isolate(column(3,renderText("Infection pressure from..."), renderUI(
