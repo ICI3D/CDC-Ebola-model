@@ -161,7 +161,8 @@ buildReactiveDistro <- function(prefix) {
         )
         do.call(distribution, c(list(model=model, period_max=max_day), other_params) )
       }
-      validate(need(sum(res$pdf)==1, "PDF does not sum to 1."))
+      ressum <- sum(res$pdf)
+      validate(need(ressum==1, paste0("PDF does not sum to 1: ", ressum)))
       return(res)
     })
   )
