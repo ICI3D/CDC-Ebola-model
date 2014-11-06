@@ -1,7 +1,7 @@
 ---
 title: "CDC Meltzer et al. Model Re-implementation"
 author: "Carl A. B. Pearson"
-date: "2014 NOV 04"
+date: "2014 NOV 06"
 output:
   html_document:
     self_contained: no
@@ -26,8 +26,8 @@ res <- reactive({
     introductions = defaults$introductions, 
     treatment_transmissions = treatment_transmissions(),
     hosp_proportions = treatment_demands(),
-    E_day_PDF = inc_distro()$pdf,
-    I_day_PDF = inf_distro()$pdf,
+    E_day_PDF = distros$inc()$pdf,
+    I_day_PDF = distros$inf()$pdf,
     N0 = N0()
   ))
 })
@@ -52,8 +52,27 @@ manualPDF <- function(prefix) {
     )
   )
 }
-incubation_entries <- manualPDF("inc")
-infectious_entries <- manualPDF("inf")
+#incubation_entries <- 
+buildPDFPanel <- function(prefix, full,
+  def_period_max,
+  def_model,
+  def_period_mean,
+  def_period_sd,
+  choices
+) {
+  column(3,
+    numericInput(paste0(prefix,"_period_max"), paste0(full," Period Max (days)?"), min=1, max=absolute_pdf_day_max, value=def_period_max, step=1),
+    conditionalPanel("input.pdf_type == 'manual'",
+      renderText(paste0(full," Day")),
+      manualPDF(prefix)
+    ),
+    conditionalPanel("input.pdf_type == 'functional'",
+      selectInput(paste0(prefix,"_model"),paste0(full," Distribution"), choices=choices, selected=def_model),
+      numericInput(paste0(prefix,"_period_mean"), paste0(full, " Period Mean (days)?"), min=0.01, max=25, value=def_period_mean, step=0.01),
+      numericInput(paste0(prefix,"_period_sd"), paste0(full, " Period St.Dev (days)?"), min=0.01, max=25, value=def_period_sd, step=0.01)
+    )
+  )
+}
 with(defaults, {
   inputPanel(
     actionButton("reset_cdc", "Set to CDC defaults."),
@@ -62,29 +81,14 @@ with(defaults, {
     numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01),
     radioButtons("pdf_type","Distribution Specification: ", choices=c("manual","functional"), selected="manual", inline=T),
     fixedRow(
-      column(3, numericInput("inc_period_max", "Incubation Period Max (days)?", min=1, max=absolute_pdf_day_max, value=inc_period_max, step=1),
-        conditionalPanel("input.pdf_type == 'manual'",
-          renderText("Incubation Day"),
-          incubation_entries
-        ),
-        conditionalPanel("input.pdf_type == 'functional'",
-          selectInput("inc_model","Incubation Distribution", choices=choices, selected=inc_model),
-          numericInput("inc_period_mean", "Incubation Period Mean (days)?", min=0.01, max=25, value=inc_period_mean, step=0.01),
-          numericInput("inc_period_sd", "Incubation Period St.Dev (days)?", min=0.01, max=25, value=inc_period_sd, step=0.01)
-        )
-      ),
-      column(3, numericInput("inf_period_max", "Infectious Period Max (days)?", min=1, max=absolute_pdf_day_max, value=inf_period_max, step=1),
-        conditionalPanel("input.pdf_type == 'manual'",
-          renderText("Infection Day"),
-          infectious_entries
-        ),
-        conditionalPanel("input.pdf_type == 'functional'",
-          selectInput("inf_model","Infection Period Distribution", choices=choices, selected=inf_model)
-          #numericInput("inf_period_mean", "Incubation Period Mean (days)?", min=0.01, max=25, value=inc_period_mean, step=0.01),
-          #numericInput("inf_period_sd", "Incubation Period St.Dev (days)?", min=0.01, max=25, value=inc_period_sd, step=0.01),   
-        )
-      ),
-      column(3, renderText("Verifications: "), renderText(paste0("Total Inc. Day P: ", sum(inc_distro()$pdf))), renderText(paste0("Total Inf. Day P: ",sum(inf_distro()$pdf))))
+      buildPDFPanel("inc", "Incubation", inc_period_max, inc_model, inc_period_mean, inc_period_sd, choices),
+      buildPDFPanel("inf", "Infectious", inf_period_max, inf_model, inf_period_mean, inf_period_sd, choices),
+      column(3,
+        renderText("Verifications: "),
+        renderText(paste0("Total Inc. Day P: ", sum(distros$inc()$pdf))),
+        renderText(paste0("Total Inf. Day P: ",sum(distros$inf()$pdf))),
+        renderText("Hospital Resource Parameters")
+      )
     ),
     fixedRow(
       isolate(column(3,renderText("Infection pressure from..."), renderUI(
@@ -114,48 +118,37 @@ with(defaults, {
 ```
 
 ```{r pdfs, echo=FALSE}
-inc_distro <- reactive({
-  validate(need(!is.null(input$pdf_type),"PDF type not initialized."))
-  res <- if (input$pdf_type == "manual") {
-    validate(
-      need(!is.null(input$inc_period_max), "max duration not initialized."),
-      need(!is.null(input[[paste0('inc_pdf_',input$inc_period_max)]]), "awaiting manual pdf construction.")
-    )
-    temp <- sapply(1:input$inc_period_max, function(day) input[[paste0('inc_pdf_',day)]])
-    list(pdf=temp, cdf=c(0,cumsum(temp)), days=0:(length(temp)-1))
-  } else {
-    other_params <- switch(input$inc_model,
-      gamma =,
-      lnorm = list(period_mean = input$inc_period_mean, period_sd = input$inc_period_sd),
-      list()
-    )
-    do.call(distribution, c(list(model=input$inc_model, period_max=input$inc_period_max), other_params) )
-  }
-  validate(need(sum(res$pdf)==1,"Incubation day PDF does not sum to 1."))
-  return(res)
-})
-inf_distro <- reactive({
-  validate(need(!is.null(input$pdf_type),"PDF type not initialized."))
-  res <- if (input$pdf_type == "manual") {
-    validate(
-      need(!is.null(input$inf_period_max), "max duration not initialized."),
-      need(!is.null(input[[paste0('inf_pdf_',input$inf_period_max)]]), "awaiting manual pdf construction.")
-    )
-
-    temp <- sapply(1:max(input$inf_period_max,1), function(day) input[[paste0('inf_pdf_',day)]])
-    list(pdf=temp, cdf=c(0,cumsum(temp)), days=0:(length(temp)-1))
-  } else {
-    other_params <- switch(input$inf_model,
-      gamma =,
-      lnorm = list(period_mean = input$inf_period_mean, period_sd = input$inf_period_sd),
-      list()
-    )
-    do.call(distribution, c(list(model=input$inf_model, period_max=input$inf_period_max), other_params) )
-  }
-  
-  validate(need(sum(res$pdf)==1,"Infection day PDF does not sum to 1."))
-  return(res)
-})
+buildReactiveDistro <- function(prefix) {
+  ref_period_max <- paste0(prefix,"_period_max")
+  pdf_base <- paste0(prefix,"_pdf_")
+  ref_model <- paste0(prefix,"_model")
+  ref_mean <- paste0(prefix,"_period_mean")
+  ref_sd <- paste0(prefix,"_period_sd")
+  return(
+    reactive({
+      validate(need(!is.null(input$pdf_type),"PDF type not initialized."))
+      max_day <- input[[ref_period_max]]
+      validate(need(!is.null(max_day), "max duration not initialized."))
+      res <- if (input$pdf_type == "manual") {
+        day_labels <- paste0(pdf_base, 1:max_day)
+        validate(need(!is.null(input[[tail(day_labels, 1)]]), "Awaiting manual pdf construction."))
+        temp <- sapply(day_labels, function(day) input[[day]])
+        list(pdf=temp, cdf=c(0,cumsum(temp)), days=0:(length(temp)-1))
+      } else {
+        model <- input[[ref_model]]
+        other_params <- switch(model,
+          gamma =,
+          lnorm = list(period_mean = input[[ref_mean]], period_sd = input[[ref_sd]]),
+          list()
+        )
+        do.call(distribution, c(list(model=model, period_max=max_day), other_params) )
+      }
+      validate(need(sum(res$pdf)==1, "PDF does not sum to 1."))
+      return(res)
+    })
+  )
+}
+distros <- list(inc=buildReactiveDistro("inc"), inf=buildReactiveDistro("inf"))
 treatment_durations <- reactive({
   res <- c(
     hospital = input$tr_dur_hospital,
@@ -190,7 +183,7 @@ treatment_demands <- reactive({
 ```{r output_disease_params, echo=FALSE}
 renderPlot({
   validate(need(!is.null(input$inf_period_max), "Awaiting initialization of incfection period."))
-  plotIncubationCDF(inc_distro(), input$inf_period_max)
+  plotIncubationCDF(distros$inc(), input$inf_period_max)
 })
 ```
 
