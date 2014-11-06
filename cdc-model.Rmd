@@ -1,6 +1,6 @@
 ---
 title: "CDC Meltzer et al. Model Re-implementation"
-author: "Carl A. B. Pearson"
+author: "CAB Pearson (model), JRC Pulliam (plots)"
 date: "2014 NOV 06"
 output:
   html_document:
@@ -50,7 +50,6 @@ manualPDF <- function(prefix) {
     )
   )
 }
-#incubation_entries <- 
 buildPDFPanel <- function(prefix, full,
   def_period_max,
   def_model,
