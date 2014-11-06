@@ -53,7 +53,7 @@ with(defaults, {
       column(3, numericInput("inc_period_max", "Incubation Period Max (days)?", min=1, max=30, value=inc_period_max, step=1),
         conditionalPanel("input.pdf_type == 'manual'",
           renderText("Incubation Day"),
-          renderUI(lapply(1:max(input$inc_period_max,1), function(day) numericInput(paste0("inc_pdf_",day), day, 0, min=0, max=1, step=0.001)))
+          renderUI(lapply(1:max(input$inc_period_max,1), function(day) numericInput(paste0("inc_pdf_",day), day, 0, min=0, max=1, step=0.0001)))
         ),
         conditionalPanel("input.pdf_type == 'functional'",
           selectInput("inc_model","Incubation Distribution", choices=choices, selected=inc_model),
@@ -64,7 +64,7 @@ with(defaults, {
       column(3, numericInput("inf_period_max", "Infectious Period Max (days)?", min=1, max=15, value=inf_period_max, step=1),
         conditionalPanel("input.pdf_type == 'manual'",
           renderText("Infection Day"),
-          renderUI(lapply(1:max(input$inf_period_max,1), function(day) numericInput(paste0("inf_pdf_",day), day, 0, min=0, max=1, step=0.001)))
+          renderUI(lapply(1:max(input$inf_period_max,1), function(day) numericInput(paste0("inf_pdf_",day), day, 0, min=0, max=1, step=0.0001)))
         ),
         conditionalPanel("input.pdf_type == 'functional'",
           selectInput("inf_model","Infection Period Distribution", choices=choices, selected=inf_model)
@@ -175,19 +175,21 @@ renderPlot({
 
 ```{r, echo=FALSE}
 N0 <- reactive({ input$N0 * 10^6 })
+resetter <- function(infpdf, incpdf, pdf_type="manual") {
+  inc_max <- length(incpdf)
+  inf_max <- length(infpdf)
+  updateNumericInput(session, "inf_period_max", value=inf_max)
+  updateNumericInput(session, "inc_period_max", value=inc_max)
+  updateRadioButtons(session, "pdf_type", selected=pdf_type)
+  mapply(function(label, p) updateNumericInput(session, label, value=p),
+         paste0('inc_pdf_',1:inc_max), incpdf)
+  mapply(function(label, p) updateNumericInput(session, label, value=p),
+       paste0('inf_pdf_',1:inf_max), infpdf)
+}
 with(defaults,{
-  observe({
-  }, priority = -1)
-  resetter <- function(definf, incmean, incsd, incmax, incmod) {
-    updateNumericInput(session, "inf_period_max", value=definf)
-    updateNumericInput(session, "inc_period_mean", value=incmean)
-    updateNumericInput(session, "inc_period_sd", value=incsd)
-    updateNumericInput(session, "inc_period_max", value=incmax)
-    updateSelectInput(session, "inc_model", selected=incmod)
-  }
-  observe(if (!is.null(input$reset_cdc) && (input$reset_cdc > 0)) resetter(6, 6.3,  3.31, 25, choices[1]), priority = -1)
-  observe(if (!is.null(input$reset_leg) && (input$reset_leg > 0)) resetter(6, 6.3,  4.31, 25, choices[1]), priority = -1)
-  observe(if (!is.null(input$reset_eic) && (input$reset_eic > 0)) resetter(6, 12.7, 3.31, 25, choices[1]), priority = -1)
+  observe(if (!is.null(input$reset_cdc) && (input$reset_cdc > 0)) resetter(inf_pdf_ref, inc_pdf_ref$cdc), priority = -1)
+  observe(if (!is.null(input$reset_leg) && (input$reset_leg > 0)) resetter(inf_pdf_ref, inc_pdf_ref$legrand), priority = -1)
+  observe(if (!is.null(input$reset_eic) && (input$reset_eic > 0)) resetter(inf_pdf_ref, inc_pdf_ref$eichner), priority = -1)
 })
 ```
 

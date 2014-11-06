@@ -236,7 +236,13 @@ defaults <- list(
 	N0 = 10^7,
 	simulation_duration = 210,
 	treatment_distribution = treatment_distro,
-	introductions = intros
+	introductions = intros,
+  inf_pdf_ref = c(0,0,0,0,0,1.0),
+  inc_pdf_ref = list(
+    cdc = c(0.00000, 0.0196, 0.0860, 0.1530, 0.1606, 0.1404, 0.1220, 0.0858, 0.0646, 0.0524, 0.0336, 0.0246, 0.0150, 0.0132, 0.0070, 0.0054, 0.0030, 0.0036, 0.0030, 0.0016, 0.0018, 0.0016, 0.0012, 0.0006, 0.0004),
+    eichner = c(0,1.0),
+    legrand = c(0,1.0)
+  )
 )
 
 defaults$inc_model <- defaults$choices["LogNormal"]
