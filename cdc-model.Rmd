@@ -31,12 +31,10 @@ res <- reactive({
     N0 = N0()
   ))
 })
-renderPlot({
-  plotCumInc(res())
-})
-renderPlot({
-  plotBedOcc(res())
-})
+tabsetPanel(
+  tabPanel("Cumulative Incidence", renderPlot({ plotCumInc(res()) })),
+  tabPanel("Bed Occupancy", renderPlot({ plotBedOcc(res()) }))
+)
 ```
 
 ### Model Settings
@@ -150,12 +148,13 @@ buildReactiveDistro <- function(prefix) {
 }
 distros <- list(inc=buildReactiveDistro("inc"), inf=buildReactiveDistro("inf"))
 treatment_durations <- reactive({
-  res <- c(
-    hospital = input$tr_dur_hospital,
-    other_isolating_care = input$tr_dur_other_isolating_care,
-    non_isolating_care = input$tr_dur_non_isolating_care
-  )
+  ref <- paste0("tr_dur_", names(defaults$infective_treatments))
+  names(ref) <- names(defaults$infective_treatments)
+  res <- sapply(ref, function(what) input[[what]])  
   validate(need(all(!sapply(res, is.null)), "not all treatment durations specified."))
+  validate(
+    need(all(res == floor(res)), "treatment durations not integers.")
+  )
   return(res)
 })
 treatment_transmissions <- reactive({
