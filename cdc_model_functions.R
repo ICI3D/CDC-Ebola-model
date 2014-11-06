@@ -209,7 +209,9 @@ cases_ref <- read.table(file="./cdc_reported_cases.csv",header = F, col.names = 
 
 defaults <- list(
 	choices = c(LogNormal = "lnorm", Erlang = "gamma", Delta = "delta"),
-	inf_period_max = 6,
+	inf_period_mean = 2.5,
+	inf_period_sd = 1,
+  inf_period_max = 6,
 	inc_period_mean = 6.3,
 	inc_period_sd = 3.31,
 	inc_period_max = 25,
