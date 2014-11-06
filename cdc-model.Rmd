@@ -58,59 +58,80 @@ buildPDFPanel <- function(prefix, full,
   def_period_sd,
   choices
 ) {
-  column(3,
-    numericInput(paste0(prefix,"_period_max"), paste0(full," Period Max (days)?"), min=1, max=absolute_pdf_day_max, value=def_period_max, step=1),
+  column(5,
+    numericInput(
+      paste0(prefix,"_period_max"),
+      paste0(full," Period Max (days)?"),
+      min=1, max=absolute_pdf_day_max, value=def_period_max, step=1
+    ),
     conditionalPanel("input.pdf_type == 'manual'",
+      renderText(paste0("Total ",full," Day P: ", sum(distros[[prefix]]()$pdf))),
       renderText(paste0(full," Day")),
       manualPDF(prefix)
     ),
     conditionalPanel("input.pdf_type == 'functional'",
-      selectInput(paste0(prefix,"_model"),paste0(full," Distribution"), choices=choices, selected=def_model),
-      numericInput(paste0(prefix,"_period_mean"), paste0(full, " Period Mean (days)?"), min=0.01, max=25, value=def_period_mean, step=0.01),
-      numericInput(paste0(prefix,"_period_sd"), paste0(full, " Period St.Dev (days)?"), min=0.01, max=25, value=def_period_sd, step=0.01)
+      selectInput(
+        paste0(prefix,"_model"),
+        paste0(full," Distribution"),
+        choices=choices, selected=def_model
+      ),
+      numericInput(
+        paste0(prefix,"_period_mean"),
+        paste0(full, " Period Mean (days)?"),
+        min=0.01, max=25, value=def_period_mean, step=0.01
+      ),
+      numericInput(
+        paste0(prefix,"_period_sd"),
+        paste0(full, " Period St.Dev (days)?"),
+        min=0.01, max=25, value=def_period_sd, step=0.01
+      )
     )
   )
 }
+buildTreatmentCol <- function(prefix, defs, step, max, treatments = defaults$infective_treatments) {
+  mapply(function(id, label, def) numericInput(id, label, min=0, step=step, max=max, value=def),
+    paste0(prefix, names(treatments)),
+    treatments,
+    defs,
+    SIMPLIFY=F
+  )
+}
 with(defaults, {
-  inputPanel(
-    actionButton("reset_cdc", "Set to CDC defaults."),
-    actionButton("reset_leg", "Set to Legrand."),
-    actionButton("reset_eic", "Set to Eichner."),
-    numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01),
-    radioButtons("pdf_type","Distribution Specification: ", choices=c("manual","functional"), selected="manual", inline=T),
-    fixedRow(
-      buildPDFPanel("inc", "Incubation", inc_period_max, inc_model, inc_period_mean, inc_period_sd, choices),
-      buildPDFPanel("inf", "Infectious", inf_period_max, inf_model, inf_period_mean, inf_period_sd, choices),
-      column(3,
-        renderText("Verifications: "),
-        renderText(paste0("Total Inc. Day P: ", sum(distros$inc()$pdf))),
-        renderText(paste0("Total Inf. Day P: ",sum(distros$inf()$pdf))),
-        renderText("Hospital Resource Parameters")
+  tabsetPanel(
+    tabPanel("General Parameters", inputPanel(
+      numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01)
+    )),
+    tabPanel("Incubation and Infectious Distributions", inputPanel(
+      actionButton("reset_cdc", "Set to CDC defaults."),
+      actionButton("reset_leg", "Set to Legrand."),
+      actionButton("reset_eic", "Set to Eichner."),
+      radioButtons(
+        "pdf_type",
+        "Distribution Specification: ",
+        choices=c("manual","functional"), selected="manual",
+        inline=T
+      ),
+      fixedRow(
+        buildPDFPanel("inc", "Incubation", inc_period_max, inc_model, inc_period_mean, inc_period_sd, choices),
+        buildPDFPanel("inf", "Infectious", inf_period_max, inf_model, inf_period_mean, inf_period_sd, choices)
       )
-    ),
-    fixedRow(
-      isolate(column(3,renderText("Infection pressure from..."), renderUI(
-        mapply(function(id, label, def) numericInput(paste0("tr_rate_",id), label, treatment_transmissions[id], min=0.01, step=0.01, value=def),
-          names(infective_treatments),
-    	    infective_treatments,
-          defaults$treatment_transmissions,
-          SIMPLIFY=F)
-      ))),
-      isolate(column(3,renderText("Hospital bed-days for..."), renderUI(
-        mapply(function(id, label, def) numericInput(paste0("tr_dur_",id), label, min=0, step=1, value=def),
-          names(infective_treatments),
-          infective_treatments,
-          defaults$treatment_durations,
-          SIMPLIFY=F)
-      ))),
-      isolate(column(3,renderText("Hospitalized Proportion for..."), isolate(renderUI(
-        mapply(function(id, label, def) numericInput(paste0("tr_prop_",id), label, min=0.01, step=0.01, max=1, value=def),
-          names(infective_treatments),
-          infective_treatments,
-          defaults$hosp_proportions,
-          SIMPLIFY=F)
-      ))))
-    )
+    )),
+    tabPanel("Treatment-Related Parameters", inputPanel(
+      fixedRow(
+        column(3,
+          renderText("Infection pressure from..."),
+          buildTreatmentCol('tr_rate_', defaults$treatment_transmissions, step=0.01, max=10.0)
+        ),
+        column(3,
+          renderText("Hospital bed-days for..."),
+          buildTreatmentCol('tr_dur_', defaults$treatment_durations, step=1, max=absolute_pdf_day_max)
+        ),
+        column(3,
+          renderText("Hospitalized Proportion for..."),
+          buildTreatmentCol('tr_prop_', defaults$hosp_proportions, step=0.01, max=1.0)
+        )
+      )
+    ))
   )
 })
 ```
@@ -170,7 +191,7 @@ treatment_demands <- treatment_parameter('tr_prop_',
 N0 <- reactive({ input$N0 * 10^6 })
 ```
 
-## Model Settings Displays
+### Model Settings Displays
 
 ```{r output_disease_params, echo=FALSE}
 renderPlot({
@@ -209,6 +230,5 @@ with(defaults,{
 
 TODOs:
 
- - turn on infectious period distributions
  - turn on asymptomatic infection
  - turn on mortality (and allow to affect governor)
