@@ -14,7 +14,7 @@ source("./cdc_model_functions.R")
 source("./cdc_plotting_functions.R")
 ```
 
-## Results
+### Results
 
 ```{r run, echo=FALSE}
 res <- reactive({
@@ -39,9 +39,19 @@ renderPlot({
 })
 ```
 
-## Model Settings
+### Model Settings
 
 ```{r disease_params, echo=FALSE}
+absolute_pdf_day_max <- 60
+manualPDF <- function(prefix) {
+  isolate(renderUI(lapply(
+    1:absolute_pdf_day_max,
+    function(day) conditionalPanel(
+      paste0("input.",prefix,"_period_max >= ",day),
+      numericInput(paste0(prefix, "_pdf_", day), day, 0, min=0, max=1, step=0.0001)
+    )
+  )))
+}
 with(defaults, {
   inputPanel(
     actionButton("reset_cdc", "Set to CDC defaults."),
@@ -50,10 +60,10 @@ with(defaults, {
     numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01),
     radioButtons("pdf_type","Distribution Specification: ", choices=c("manual","functional"), selected="functional", inline=T),
     fixedRow(
-      column(3, numericInput("inc_period_max", "Incubation Period Max (days)?", min=1, max=30, value=inc_period_max, step=1),
+      column(3, numericInput("inc_period_max", "Incubation Period Max (days)?", min=1, max=absolute_pdf_day_max, value=inc_period_max, step=1),
         conditionalPanel("input.pdf_type == 'manual'",
           renderText("Incubation Day"),
-          renderUI(lapply(1:max(input$inc_period_max,1), function(day) numericInput(paste0("inc_pdf_",day), day, 0, min=0, max=1, step=0.0001)))
+          manualPDF("inc")
         ),
         conditionalPanel("input.pdf_type == 'functional'",
           selectInput("inc_model","Incubation Distribution", choices=choices, selected=inc_model),
@@ -64,7 +74,7 @@ with(defaults, {
       column(3, numericInput("inf_period_max", "Infectious Period Max (days)?", min=1, max=15, value=inf_period_max, step=1),
         conditionalPanel("input.pdf_type == 'manual'",
           renderText("Infection Day"),
-          renderUI(lapply(1:max(input$inf_period_max,1), function(day) numericInput(paste0("inf_pdf_",day), day, 0, min=0, max=1, step=0.0001)))
+          manualPDF("inf")
         ),
         conditionalPanel("input.pdf_type == 'functional'",
           selectInput("inf_model","Infection Period Distribution", choices=choices, selected=inf_model)
@@ -105,7 +115,11 @@ with(defaults, {
 inc_distro <- reactive({
   validate(need(!is.null(input$pdf_type),"PDF type not initialized."))
   res <- if (input$pdf_type == "manual") {
-    temp <- sapply(1:max(input$inc_period_max,1), function(day) input[[paste0('inc_pdf_',day)]])
+    validate(
+      need(!is.null(input$inc_period_max), "max duration not initialized."),
+      need(!is.null(input[[paste0('inc_pdf_',input$inc_period_max)]]), "awaiting manual pdf construction.")
+    )
+    temp <- sapply(1:input$inc_period_max, function(day) input[[paste0('inc_pdf_',day)]])
     list(pdf=temp, cdf=c(0,cumsum(temp)), days=0:(length(temp)-1))
   } else {
     other_params <- switch(input$inc_model,
@@ -121,6 +135,11 @@ inc_distro <- reactive({
 inf_distro <- reactive({
   validate(need(!is.null(input$pdf_type),"PDF type not initialized."))
   res <- if (input$pdf_type == "manual") {
+    validate(
+      need(!is.null(input$inf_period_max), "max duration not initialized."),
+      need(!is.null(input[[paste0('inf_pdf_',input$inf_period_max)]]), "awaiting manual pdf construction.")
+    )
+
     temp <- sapply(1:max(input$inf_period_max,1), function(day) input[[paste0('inf_pdf_',day)]])
     list(pdf=temp, cdf=c(0,cumsum(temp)), days=0:(length(temp)-1))
   } else {
