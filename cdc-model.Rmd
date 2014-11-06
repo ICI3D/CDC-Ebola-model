@@ -44,26 +44,28 @@ renderPlot({
 ```{r disease_params, echo=FALSE}
 absolute_pdf_day_max <- 60
 manualPDF <- function(prefix) {
-  isolate(renderUI(lapply(
+  lapply(
     1:absolute_pdf_day_max,
     function(day) conditionalPanel(
       paste0("input.",prefix,"_period_max >= ",day),
       numericInput(paste0(prefix, "_pdf_", day), day, 0, min=0, max=1, step=0.0001)
     )
-  )))
+  )
 }
+incubation_entries <- manualPDF("inc")
+infectious_entries <- manualPDF("inf")
 with(defaults, {
   inputPanel(
     actionButton("reset_cdc", "Set to CDC defaults."),
     actionButton("reset_leg", "Set to Legrand."),
     actionButton("reset_eic", "Set to Eichner."),
     numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01),
-    radioButtons("pdf_type","Distribution Specification: ", choices=c("manual","functional"), selected="functional", inline=T),
+    radioButtons("pdf_type","Distribution Specification: ", choices=c("manual","functional"), selected="manual", inline=T),
     fixedRow(
       column(3, numericInput("inc_period_max", "Incubation Period Max (days)?", min=1, max=absolute_pdf_day_max, value=inc_period_max, step=1),
         conditionalPanel("input.pdf_type == 'manual'",
           renderText("Incubation Day"),
-          manualPDF("inc")
+          incubation_entries
         ),
         conditionalPanel("input.pdf_type == 'functional'",
           selectInput("inc_model","Incubation Distribution", choices=choices, selected=inc_model),
@@ -71,10 +73,10 @@ with(defaults, {
           numericInput("inc_period_sd", "Incubation Period St.Dev (days)?", min=0.01, max=25, value=inc_period_sd, step=0.01)
         )
       ),
-      column(3, numericInput("inf_period_max", "Infectious Period Max (days)?", min=1, max=15, value=inf_period_max, step=1),
+      column(3, numericInput("inf_period_max", "Infectious Period Max (days)?", min=1, max=absolute_pdf_day_max, value=inf_period_max, step=1),
         conditionalPanel("input.pdf_type == 'manual'",
           renderText("Infection Day"),
-          manualPDF("inf")
+          infectious_entries
         ),
         conditionalPanel("input.pdf_type == 'functional'",
           selectInput("inf_model","Infection Period Distribution", choices=choices, selected=inf_model)
@@ -206,9 +208,18 @@ resetter <- function(infpdf, incpdf, pdf_type="manual") {
        paste0('inf_pdf_',1:inf_max), infpdf)
 }
 with(defaults,{
-  observe(if (!is.null(input$reset_cdc) && (input$reset_cdc > 0)) resetter(inf_pdf_ref, inc_pdf_ref$cdc), priority = -1)
-  observe(if (!is.null(input$reset_leg) && (input$reset_leg > 0)) resetter(inf_pdf_ref, inc_pdf_ref$legrand), priority = -1)
-  observe(if (!is.null(input$reset_eic) && (input$reset_eic > 0)) resetter(inf_pdf_ref, inc_pdf_ref$eichner), priority = -1)
+  observe({
+    input$reset_cdc
+    resetter(inf_pdf_ref, inc_pdf_ref$cdc)
+  }, priority = 0)
+  observe({
+    input$reset_leg
+    resetter(inf_pdf_ref, inc_pdf_ref$legrand)
+  }, priority = 1)
+  observe({
+    input$reset_eic
+    resetter(inf_pdf_ref, inc_pdf_ref$eichner)
+  }, priority = 2)
 })
 ```
 
