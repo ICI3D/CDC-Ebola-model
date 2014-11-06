@@ -58,7 +58,7 @@ buildPDFPanel <- function(prefix, full,
   def_period_sd,
   choices
 ) {
-  column(5,
+  column(4,
     numericInput(
       paste0(prefix,"_period_max"),
       paste0(full," Period Max (days)?"),
