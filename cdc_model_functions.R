@@ -198,14 +198,32 @@ simulate <- function(scenario = defaults) with(scenario, { # scenario provides a
 })
 
 ## test code
-treatment_ref <- read.table(file = "./cdc_non_intervention_distros.csv",header = T)
-treatment_distro <- function(t) as.numeric(treatment_ref[max(which(treatment_ref$start_day <= t)),-1])
-intro_ref <- read.table(file = "./cdc_scenario1_intros.csv",header = T)
-intros <- function(t) {
-	ind <- which(intro_ref[,1] == t)
-	ifelse(length(ind) != 0, intro_ref[ind,2], 0)
+
+accepted_file_types = c(
+  'text/csv',
+  'text/comma-separated-values',
+  'text/tab-separated-values',
+  'text/plain',
+  '.csv',
+  '.tsv'
+)
+
+treat_ref <- read.table(file = "./cdc_scenario1_distros.csv", header = T)
+intro_ref <- read.table(file = "./cdc_scenario1_intros.csv", header = T)
+cases_ref <- read.table(file = "./cdc_reported_cases.csv", header = F, col.names = c("date","cum.inc"))
+
+yield_intervention <- function(ref.table) {
+  return(function(t) {
+    as.numeric(ref.table[max(which(ref.table$start_day <= t)),-1])
+  })
 }
-cases_ref <- read.table(file="./cdc_reported_cases.csv",header = F, col.names = c("date","cum.inc"))
+
+yield_introduction <- function(ref.table) {
+  return(function(t) {
+    ind <- which(intro_ref[,1] == t)
+    ifelse(length(ind) != 0, intro_ref[ind,2], 0)
+  })
+}
 
 defaults <- list(
 	choices = c(LogNormal = "lnorm", Erlang = "gamma", Delta = "delta"),
@@ -237,8 +255,8 @@ defaults <- list(
 	),
 	N0 = 10^7,
 	simulation_duration = 210,
-	treatment_distribution = treatment_distro,
-	introductions = intros,
+	treatment_distribution = yield_intervention(treat_ref),
+	introductions = yield_introduction(intro_ref),
   inf_pdf_ref = c(0,0,0,0,0,1.0),
   inc_pdf_ref = list(
     cdc =     c(0.0000, 0.0196, 0.0860, 0.1530, 0.1606, 0.1404, 0.1220, 0.0858, 0.0646, 0.0524, 0.0336, 0.0246, 0.0150, 0.0132, 0.0070, 0.0054, 0.0030, 0.0036, 0.0030, 0.0016, 0.0018, 0.0016, 0.0012, 0.0006, 0.0004),
@@ -246,9 +264,6 @@ defaults <- list(
     legrand = c(0.0036, 0.0570, 0.1338, 0.1510, 0.1320, 0.1162, 0.0942, 0.0684, 0.0552, 0.0420, 0.0374, 0.0240, 0.0180, 0.0138, 0.0102, 0.0102, 0.0060, 0.0048, 0.0032, 0.0038, 0.00244, 0.00344, 0.00324, 0.00304, 0.00304)
   )
 )
-
-
-
 
 defaults$inc_model <- defaults$choices["LogNormal"]
 defaults$inf_model <- defaults$choices["Delta"]

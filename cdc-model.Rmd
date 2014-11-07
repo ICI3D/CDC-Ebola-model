@@ -22,8 +22,8 @@ res <- reactive({
     infective_treatments = defaults$infective_treatments,
     treatment_durations = treatment_durations(),
     simulation_duration = defaults$simulation_duration,
-    treatment_distribution = defaults$treatment_distribution,
-    introductions = defaults$introductions, 
+    treatment_distribution = yield_intervention(intervention_scenario()),
+    introductions = yield_introduction(introduction_scenario()), 
     treatment_transmissions = treatment_transmissions(),
     hosp_proportions = treatment_demands(),
     E_day_PDF = distros$inc()$pdf,
@@ -130,6 +130,26 @@ with(defaults, {
           buildTreatmentCol('tr_prop_', defaults$hosp_proportions, step=0.01, max=1.0)
         )
       )
+    )),
+    tabPanel("Scenario Parameters",
+      renderText("Input an introduction scenario"),
+      fileInput('introduction_file', 'Choose file to upload',
+        accept = accepted_file_types
+      ),
+      renderText("Input an intervention scenario"),
+      fileInput('intervention_file', 'Choose file to upload',
+        accept = c(
+          'text/csv',
+          'text/comma-separated-values',
+          'text/tab-separated-values',
+          'text/plain',
+          '.csv',
+          '.tsv'
+        )
+      )
+    ),
+    tabPanel("Notes", renderText(
+      "TODO: provide notes.  particularly, describe CDC 'distribution' computations, provide citations."
     ))
   )
 })
@@ -189,15 +209,41 @@ treatment_demands <- treatment_parameter('tr_prop_',
   list(f=function(res) all((res >= 0) & (res <= 1)), msg="hospitalization proportions not in [0,1].")
 )
 N0 <- reactive({ input$N0 * 10^6 })
+buildFileReactive <- function(name, defname) {
+  return(reactive({
+    src <- if (is.null(input[[name]])) {
+      defname
+    } else {
+      input[[name]]$datapath
+    }
+    return(read.table(src, header=T))
+  }))
+}
+intervention_scenario <- buildFileReactive('intervention_file', "./cdc_scenario1_distros.csv")
+introduction_scenario <- buildFileReactive('introduction_file', "./cdc_scenario1_intros.csv")
 ```
 
 ### Model Settings Displays
 
 ```{r output_disease_params, echo=FALSE}
-renderPlot({
-  validate(need(!is.null(input$inf_period_max), "Awaiting initialization of incfection period."))
-  plotIncubationCDF(distros$inc(), input$inf_period_max)
-})
+tabsetPanel(
+  tabPanel("Incubation Distribution",
+    renderPlot(plotPeriodCDF(distros$inc()))
+  ),
+  tabPanel("Infectious Distribution",
+    renderPlot(plotPeriodCDF(distros$inf()))
+  ),
+  tabPanel("Introductions",
+    renderText("TODO")
+  ),
+  tabPanel("Intervention Scenario",
+    renderTable(intervention_scenario(), inline=T),
+    renderPlot({
+      p <- plotInterventionScenario(intervention_scenario(), defaults$simulation_duration)
+      p
+    })
+  )
+)
 ```
 
 ```{r, echo=FALSE}
