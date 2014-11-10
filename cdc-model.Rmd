@@ -9,7 +9,7 @@ output:
 runtime: shiny
 ---
 ```{r, echo=FALSE}
-require(stats)
+invisible(library(stats));
 source("./cdc_model_functions.R")
 source("./cdc_plotting_functions.R")
 ```

@@ -2,7 +2,7 @@
 ## re-implementation by Carl A.B. Pearson
 ## Plotting Functions by Juliet R.C. Pulliam
 
-require(ggplot2); require(reshape2)
+invisible(library(ggplot2)); invisible(library(reshape2))
 
 plotPeriodCDF <- function(distro, fillCol="lightsteelblue1") with(distro, {
   par(bty="L",lwd=3)
