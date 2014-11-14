@@ -11,7 +11,7 @@ plotPeriodCDF <- function(distro) {
   p <- ggplot(distro.df, aes(x=days, color=pdf, fill=pdf))
   p <- p + geom_bar(aes(y=pdf/max(pdf)), stat="identity", width=0.95)
   p <- p + geom_line(aes(y=cdf), color="black")
-  p <- p + xlab("Day") + ylab("CDF")
+  p <- p + xlab("Day") + ylab("CDF, Normalized PDF (pdf/max(pdf))")
   p <- p + theme_bw() + theme_update(panel.background = element_blank(), panel.border=element_blank())
   p
 }
