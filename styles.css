@@ -6,6 +6,25 @@ div.pdf_control label {
   display: inline-block;
 }
 
+div.gen label {
+  display: inline-block;
+  min-width: 15em;
+  text-align: right;
+}
+
+div.gen input[type="number"] {
+  width: 3em;
+}
+
+div.gen .shiny-date-input {
+  display:inline-block;
+}
+
+div.gen .shiny-date-input input {
+  width: 6em;
+}
+
+
 div.pdf h4 {
   text-align: center;
 }

@@ -97,8 +97,8 @@ buildPDFPanel <- function(prefix, full,
     )
   ))
 }
-buildTreatmentCol <- function(prefix, defs, step, max, treatments = defaults$infective_treatments) {
-  mapply(function(id, label, def) numericInput(id, label, min=0, step=step, max=max, value=def),
+buildTreatmentCol <- function(prefix, defs, step, max, treatments = defaults$infective_treatments, type=numericInput) {
+  mapply(function(id, label, def) type(id, label, min=0, step=step, max=max, value=def),
     paste0(prefix, names(treatments)),
     treatments,
     defs,
@@ -184,10 +184,10 @@ introduction_scenario <- reactive({
 with(defaults, {
   inputPanel(tabsetPanel(
     tabPanel("General Parameters", div(class="gen",
-      numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01),
-      numericInput("simulation_duration","Simulation Duration (days)?", value=simulation_duration, min=1, max=365*2, step=1),
-      dateInput("start_date","Outbreak state date (yyyy-mm-dd)?", min="2014-01-01", max="2014-12-31", value="2014-02-03"),
-      numericInput("reporting_rate", "Case Reporting Rate?", min=0, value = 1/2.5, step=0.001)
+      numericInput("N0","Population", value=N0/10^6, min=0.01, max=100, step=0.01), em("(millions)"), br(),
+      numericInput("simulation_duration","Sim. Length", value=simulation_duration, min=1, max=365*2, step=1), em("(days)"), br(),
+      dateInput("start_date","Start date", min="2014-01-01", max="2014-12-31", value="2014-02-03"), em("(yyyy-mm-dd)"), br(),
+      numericInput("reporting_rate", "Case Reporting Rate", min=0, value = 1/2.5, step=0.001), em("(%)")
     )),
     tabPanel("Incubation and Infectious Distributions",
       fixedRow(column(10,
@@ -208,17 +208,17 @@ with(defaults, {
     ),
     tabPanel("Treatment-Related Parameters",
       fixedRow(
-        column(3,
+        column(4,
           h4("Infection pressure from..."),
           buildTreatmentCol('tr_rate_', defaults$treatment_transmissions, step=0.01, max=10.0)
         ),
-        column(3,
+        column(4,
           h4("Hospital bed-days for..."),
           buildTreatmentCol('tr_dur_', defaults$treatment_durations, step=1, max=absolute_pdf_day_max)
         ),
-        column(3,
-          h4("Hospitalized Proportion for..."),
-          buildTreatmentCol('tr_prop_', defaults$hosp_proportions, step=0.01, max=1.0)
+        column(4,
+          h4("Hospitalized proportion for..."),
+          buildTreatmentCol('tr_prop_', defaults$hosp_proportions, step=0.01, max=1.0, type=sliderInput)
         )
       )
     ),
