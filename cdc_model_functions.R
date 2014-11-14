@@ -269,5 +269,4 @@ defaults$inc_model <- defaults$choices["LogNormal"]
 defaults$inf_model <- defaults$choices["Delta"]
 defaults$E_day_PDF <- with(defaults, distribution(inc_model, inc_period_max, period_mean = inc_period_mean, period_sd = inc_period_sd)$pdf)
 defaults$I_day_PDF <- with(defaults, distribution(inf_model, inf_period_max)$pdf)
-#defaults$E_day_PDF <- c(0.00000, 0.01960, 0.08600, 0.15300, 0.16060, 0.14040, 0.12200, 0.08580, 0.06460, 0.05240, 0.03360, 0.02460, 0.01500, 0.01320, 0.00700, 0.00540, 0.00300, 0.00360, 0.00300, 0.00160, 0.00180, 0.00160, 0.00120, 0.00060, 0.00040)
 results <- data.frame(simulate(defaults))

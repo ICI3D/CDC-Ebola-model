@@ -1,11 +1,9 @@
 ---
-title: "CDC Meltzer et al. Model Re-implementation"
-author: "CAB Pearson (model), JRC Pulliam (plots)"
-date: "2014 NOV 06"
 output:
   html_document:
     self_contained: no
     smart: no
+    css: styles.css
 runtime: shiny
 ---
 ```{r, echo=FALSE}
@@ -21,7 +19,7 @@ res <- reactive({
   simulate(list(
     infective_treatments = defaults$infective_treatments,
     treatment_durations = treatment_durations(),
-    simulation_duration = defaults$simulation_duration,
+    simulation_duration = simulation_duration(),
     treatment_distribution = yield_intervention(intervention_scenario()),
     introductions = yield_introduction(introduction_scenario()), 
     treatment_transmissions = treatment_transmissions(),
@@ -32,8 +30,8 @@ res <- reactive({
   ))
 })
 tabsetPanel(
-  tabPanel("Cumulative Incidence", renderPlot({ plotCumInc(res()) })),
-  tabPanel("Bed Occupancy", renderPlot({ plotBedOcc(res()) }))
+  tabPanel("Cumulative Incidence", renderPlot({ plotCumInc(res(), start=input$start_date, reporting_rate=input$reporting_rate) })),
+  tabPanel("Bed Occupancy", renderPlot({ plotBedOcc(res(), start=input$start_date, reporting_rate=input$reporting_rate) }))
 )
 ```
 
@@ -57,17 +55,19 @@ buildPDFPanel <- function(prefix, full,
   def_period_sd,
   choices
 ) {
+  sum_check_id <- paste0(prefix,"_pdf_sum")
+  output[[sum_check_id]] <- renderText(sum(distros[[prefix]]()$pdf))
   column(4,
     numericInput(
       paste0(prefix,"_period_max"),
       paste0(full," Period Max (days)?"),
       min=1, max=absolute_pdf_day_max, value=def_period_max, step=1
     ),
-    conditionalPanel("input.pdf_type == 'manual'",
-      renderText(paste0("Total ",full," Day P: ", sum(distros[[prefix]]()$pdf))),
-      renderText(paste0(full," Day")),
+    conditionalPanel("input.pdf_type == 'manual'", div(class = "pdf",
+      div(paste0("Total ", full," "), em("p: "), textOutput(sum_check_id, span)),
+      div(paste0("day - ", full," p")),
       manualPDF(prefix)
-    ),
+    )),
     conditionalPanel("input.pdf_type == 'functional'",
       selectInput(
         paste0(prefix,"_model"),
@@ -95,10 +95,89 @@ buildTreatmentCol <- function(prefix, defs, step, max, treatments = defaults$inf
     SIMPLIFY=F
   )
 }
+absolute_max_events <- 100
+interventionInputs <- function() {
+  lapply(
+    1:absolute_max_events,
+    function(id) conditionalPanel(
+      paste0("input.intervention_event_max >= ",id),
+      numericInput(paste0("treatment_day_", id), "Day", value=id, min=id, step=1),
+      sliderInput(paste0("treatment_pro_", id), "Allocations", value=c(0,0.05), min=0, max=1, step=0.01)
+    )
+  )
+}
+buildInterventionCol <- function() {
+  column(4,
+    numericInput(
+      "intervention_event_max",
+      "Changes in Treatment Allocation?",
+      min=1, max=absolute_max_events, value=1, step=1
+    ),
+    interventionInputs()
+  )
+}
+intervention_scenario <- reactive({
+  max_events <- input$intervention_event_max
+  validate(need(!is.null(max_events), "max duration not initialized."))
+  res <- {
+    labels <- paste0("treatment_pro_", 1:max_events)
+    day_labels <- paste0("treatment_day_", 1:max_events)
+    validate(need(!is.null(input[[tail(labels, 1)]]), "Awaiting intervention inputs."))
+    temp <- mapply(function(day, data) {
+      pro <- input[[data]]
+      hosp_pro <- pro[1]
+      home_pro <- pro[2]-pro[1]
+      none_pro <- 1 - pro[2]
+      return(c(input[[day]], hosp_pro, home_pro, none_pro))
+    }, day_labels, labels, USE.NAMES=F)
+    res <- data.frame(t(temp))
+    names(res) <- c("start_day","Hospitalized","Isolating Home Care","Other Care")
+    res
+  }
+})
+introductionInputs <- function() {
+  lapply(
+    1:absolute_max_events,
+    function(id) conditionalPanel(
+      paste0("input.introduction_event_max >= ",id),
+      numericInput(paste0("intro_day_", id), "Day", value=id, min=id, step=1),
+      numericInput(paste0("intro_count_", id), "Introductions", value=25, min=1, step=1)
+    )
+  )
+}
+buildIntroductionCol <- function() {
+  column(4,
+    numericInput(
+      "introduction_event_max",
+      "Introduction Events?",
+      min=1, max=absolute_max_events, value=1, step=1
+    ),
+    introductionInputs()
+  )
+}
+introduction_scenario <- reactive({
+  max_events <- input$introduction_event_max
+  validate(need(!is.null(max_events), "max duration not initialized."))
+  res <- {
+    labels <- paste0("intro_count_", 1:max_events)
+    day_labels <- paste0("intro_day_", 1:max_events)
+    validate(need(!is.null(input[[tail(labels, 1)]]), "Awaiting introduction inputs."))
+    temp <- mapply(function(day, data) {
+      return(c(input[[day]], input[[data]]))
+    }, day_labels, labels, USE.NAMES=F)
+    res <- data.frame(t(temp))
+    names(res) <- c("day","count")
+    res
+  }
+})
+
 with(defaults, {
   tabsetPanel(
     tabPanel("General Parameters", inputPanel(
-      numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01)
+      numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01),
+      numericInput("simulation_duration","Simulation Duration (days)?", value=simulation_duration, min=1, max=365*2, step=1),
+      dateInput("start_date","Outbreak state date (yyyy-mm-dd)?", min="2014-01-01", max="2014-12-31", value="2014-02-03"),
+      numericInput("reporting_rate", "Case Reporting Rate?", min=0, value = 1/2.5, step=0.001)
     )),
     tabPanel("Incubation and Infectious Distributions", inputPanel(
       actionButton("reset_cdc", "Set to CDC defaults."),
@@ -131,26 +210,18 @@ with(defaults, {
         )
       )
     )),
-    tabPanel("Scenario Parameters",
-      renderText("Input an introduction scenario"),
-      fileInput('introduction_file', 'Choose file to upload',
-        accept = accepted_file_types
-      ),
-      renderText("Input an intervention scenario"),
-      fileInput('intervention_file', 'Choose file to upload',
-        accept = c(
-          'text/csv',
-          'text/comma-separated-values',
-          'text/tab-separated-values',
-          'text/plain',
-          '.csv',
-          '.tsv'
-        )
+    tabPanel("Scenario Parameters", inputPanel(
+      fixedRow(
+        buildInterventionCol(),
+        buildIntroductionCol()
       )
-    ),
+    )),
     tabPanel("Notes", renderText(
       "TODO: provide notes.  particularly, describe CDC 'distribution' computations, provide citations."
-    ))
+      ), renderText(
+      "TODO: (1) turn on asymptomatic infection, (2) turn on mortality (and allow to affect governor)"
+      )
+    )
   )
 })
 ```
@@ -209,18 +280,7 @@ treatment_demands <- treatment_parameter('tr_prop_',
   list(f=function(res) all((res >= 0) & (res <= 1)), msg="hospitalization proportions not in [0,1].")
 )
 N0 <- reactive({ input$N0 * 10^6 })
-buildFileReactive <- function(name, defname) {
-  return(reactive({
-    src <- if (is.null(input[[name]])) {
-      defname
-    } else {
-      input[[name]]$datapath
-    }
-    return(read.table(src, header=T))
-  }))
-}
-intervention_scenario <- buildFileReactive('intervention_file', "./cdc_scenario1_distros.csv")
-introduction_scenario <- buildFileReactive('introduction_file', "./cdc_scenario1_intros.csv")
+simulation_duration <- reactive({ input$simulation_duration })
 ```
 
 ### Model Settings Displays
@@ -234,12 +294,13 @@ tabsetPanel(
     renderPlot(plotPeriodCDF(distros$inf()))
   ),
   tabPanel("Introductions",
-    renderText("TODO")
+    renderTable(introduction_scenario(), inline=T),
+    renderText("TODO plot")
   ),
   tabPanel("Intervention Scenario",
     renderTable(intervention_scenario(), inline=T),
     renderPlot({
-      p <- plotInterventionScenario(intervention_scenario(), defaults$simulation_duration)
+      p <- plotInterventionScenario(intervention_scenario(), input$simulation_duration)
       p
     })
   )
@@ -273,8 +334,3 @@ with(defaults,{
   }, priority = 2)
 })
 ```
-
-TODOs:
-
- - turn on asymptomatic infection
- - turn on mortality (and allow to affect governor)

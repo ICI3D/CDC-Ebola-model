@@ -26,50 +26,136 @@ plotPeriodCDF <- function(distro, fillCol="lightsteelblue1") with(distro, {
   )
 })
 
-plotCumInc <- function(run,plotMeltzerCorrection=T,mcf=2.5,plotMort=F,cfr=0.72,
-											 beginDate=as.Date("2014-03-26"),endDate=as.Date("2014-09-26"),startCDC=as.Date("2014-02-03"),
-											 lineCol="#2b8cbe",mortCol="red4"){
-	dates <- startCDC:(startCDC+dim(run)[1]-1)
-	par(bty="L",lwd=3)
-	par(mar=c(5,7,1,1)+1)
-	if(plotMeltzerCorrection){
-		plot(dates, run[,2]/1000*mcf, type="l",ann=F,xaxt="n",yaxt="n",col=lineCol,xlim=c(beginDate,endDate),lty=3)
-		lines(dates, run[,2]/1000,col=lineCol)
-	}else{
-		plot(dates, run[,2]/1000, type="l",ann=F,xaxt="n",yaxt="n",col=lineCol,xlim=c(beginDate,endDate))
-	}
-	mtext("Cumulative no. of cases",2,cex=1.7,line=6)
-	mtext("(Thousands)",2,cex=1.7,line=4.3)
-	labDates <- as.Date(seq(beginDate,endDate,30))
-	axis(1,labDates,format(labDates,"%m/%e"),cex.axis=1.8,padj=.6,lwd=3)
-	axis(2,cex.axis=1.8,padj=-.6,lwd=3)
-	if(plotMort&plotMeltzerCorrection) lines(dates, run[,2]/1000*cfr*mcf,col=mortCol)
-	if(plotMort) lines(dates, run[,2]/1000*cfr,col=mortCol)	
-	if(plotMeltzerCorrection&!plotMort) legend("topleft",legend = c("No correction factor","Meltzer (CDC) correction factor"),bty="n",cex=1.3,
-				 lwd=3,lty=c(1,3),col=lineCol)
-	if(plotMeltzerCorrection&plotMort) {
-		legend("topleft",legend = c("Cases - no correction factor","Cases - Meltzer (CDC) correction factor","Deaths - no correction factor","Deaths - Meltzer (CDC) correction factor"),
-					 bty="n",cex=1.3,lwd=3,lty=c(1,3,1,3),col=c(lineCol,lineCol,mortCol,mortCol))	
-	}
+dateSequence <- function(yyyymmdd, days) {
+  ref.lt <- as.POSIXlt(yyyymmdd, "GMT")
+  ref.dt <- as.Date(ref.lt)
+  start.dt <- ref.dt - (ref.lt$mday - 1)
+  dates <- seq(from=start.dt, to=ref.dt+days+15, by="month")
+  is <- as.numeric(dates - ref.dt)
+  return(list(dates=dates, is=is))
 }
 
-plotBedOcc <- function(run,plotMeltzerCorrection=T,mcf=2.5,
-											 beginDate=as.Date("2014-03-26"),endDate=as.Date("2014-09-26"),startCDC=as.Date("2014-02-03"),
-											 lineCol="#2b8cbe",mortCol="red4"){
-	dates <- startCDC:(startCDC+dim(run)[1]-1)
-	par(bty="L",lwd=3,mar=c(5,7,1,1)+1)
-	if(plotMeltzerCorrection){
-		plot(dates, run[,3]/100*mcf, type="l",ann=F,xaxt="n",yaxt="n",col=lineCol,xlim=c(beginDate,endDate),lty=3)
-		lines(dates, run[,3]/100,col=lineCol)
-	}else{
-			plot(dates, run[,3]/100, type="l",ann=F,xaxt="n",yaxt="n",col=lineCol,xlim=c(beginDate,endDate))
-		}
-	mtext("Daily no. of beds in use",2,cex=1.7,line=6)
-	mtext("(Hundreds)",2,cex=1.7,line=4.3)
-	labDates <- as.Date(seq(beginDate,endDate,30))
-	axis(1,labDates,format(labDates,"%m/%e"),cex.axis=1.8,padj=.6,lwd=3)
-	axis(2,cex.axis=1.8,padj=-.6,lwd=3)
+plotCumInc <- function(
+  run,
+  reporting_rate = 1/2.5, # NA to skip plotting
+  CFR = NA, # switch to proportion to plot mortality
+  start = "2014-02-03",
+  mean_inf_period = 6,
+	lineCol="#2b8cbe",
+  mortCol="red4",
+  scale = 1000
+) {
+	par(bty="L",lwd=3)
+	par(mar=c(5,7,1,1)+1)
+  simulation_duration <- dim(run)[1]
+  xs <- 1:simulation_duration
+  incidence <- run[,"cumulative_sick"]/scale
+  
+  show.correction <- !is.na(reporting_rate)
+	show.mortality <- !is.na(CFR)
+  
+	dates <- dateSequence(start, simulation_duration)
+  
+  ymaxlim <- max(incidence)*ifelse(show.correction && (reporting_rate < 1), 1/reporting_rate, 1)
+	
+  plot(xs, incidence, type="l", ann=F, xaxt="n", yaxt="n", col=lineCol, ylim=c(0, ymaxlim), xlim=c(dates$is[1],tail(dates$is,1)))
+  if(!is.na(reporting_rate)) lines(xs, incidence/reporting_rate, col=lineCol, lty=3)
+  
+	mtext("Cumulative # of cases", 2, cex=1.7, line=6)
+	mtext(paste0("(",scale,"s)"),  2, cex=1.7, line=4.3)
+	axis(1, dates$is, format(dates$dates,"%d%b%y"), cex.axis=1.8,padj=.6,lwd=3)
+	axis(2, cex.axis=1.8, padj=-.6, lwd=3)
+  
+  if (show.mortality || show.correction) {
+    all.labels <- c(
+      "Raw Modeled Cases",
+      " w/ Under-reporting",
+      "Raw Modeled Deaths",
+      " w/ Under-reporting"
+    )
+    if (show.mortality) {
+      if (show.correction) {
+        lines(xs, incidence*CFR/reporting_rate, col=mortCol, lty=3)
+        leg.lty <- c(1,3,1,3) # could be recycled as well
+        leg.col <- c(lineCol, lineCol, mortCol, mortCol)
+        leg.labels <- all.labels
+      } else {
+        leg.lty <- c(1,1) # could be recycled as well
+        leg.col <- c(lineCol, mortCol)
+        leg.labels <- all.labels[c(1,3)]
+      }
+      lines(xs, incidence*CFR, col=mortCol)  
+    } else if (show.correction) {
+      leg.col <- lineCol
+      leg.lty <- c(1,3)
+      leg.labels <- all.labels[c(1,2)]
+    }
+    legend("topleft", legend = leg.labels,
+           bty="n", cex=1.3, lwd=3,
+           lty=leg.lty, col=leg.col
+    )
+  }
+	  
 }
+
+plotBedOcc <- function(
+  run,
+  reporting_rate = 1/2.5, # NA to skip plotting
+  start = "2014-02-03",
+  lineCol="#2b8cbe",
+  scale = 100
+) {
+  par(bty="L",lwd=3)
+  par(mar=c(5,7,1,1)+1)
+  simulation_duration <- dim(run)[1]
+  xs <- 1:simulation_duration
+  incidence <- run[,"beds_occupied"]/scale
+  
+  show.correction <- !is.na(reporting_rate)
+  
+  dates <- dateSequence(start, simulation_duration)
+  
+  ymaxlim <- max(incidence)*ifelse(show.correction && (reporting_rate < 1), 1/reporting_rate, 1)
+  
+  plot(xs, incidence, type="l", ann=F, xaxt="n", yaxt="n", col=lineCol, ylim=c(0, ymaxlim), xlim=c(dates$is[1],tail(dates$is,1)))
+  if(!is.na(reporting_rate)) lines(xs, incidence/reporting_rate, col=lineCol, lty=3)
+  
+  mtext("Daily # of beds in use",2,cex=1.7,line=6)
+  mtext(paste0("(",scale,"s)"),2,cex=1.7,line=4.3)
+  axis(1, dates$is, format(dates$dates,"%d%b%y"), cex.axis=1.8,padj=.6,lwd=3)
+  axis(2, cex.axis=1.8, padj=-.6, lwd=3)
+  
+  if (show.correction) {
+    leg.col <- lineCol
+    leg.lty <- c(1,3)
+    leg.labels <- 
+    legend("topleft", legend = c(
+        "Raw Modeled Usage",
+        " w/ Under-reporting"
+      ), bty="n", cex=1.3, lwd=3,
+      lty=c(1,3), col=lineCol
+    )
+  }
+  
+}
+
+# plotBedOcc <- function(run,plotMeltzerCorrection=T,mcf=2.5,
+# 											 beginDate=as.Date("2014-03-26"),endDate=as.Date("2014-09-26"),startCDC=as.Date("2014-02-03"),
+# 											 lineCol="#2b8cbe",mortCol="red4"){
+# 	dates <- startCDC:(startCDC+dim(run)[1]-1)
+# 	par(bty="L",lwd=3,mar=c(5,7,1,1)+1)
+# 	if(plotMeltzerCorrection){
+# 		plot(dates, run[,3]/100*mcf, type="l",ann=F,xaxt="n",yaxt="n",col=lineCol,xlim=c(beginDate,endDate),lty=3)
+# 		lines(dates, run[,3]/100,col=lineCol)
+# 	}else{
+# 			plot(dates, run[,3]/100, type="l",ann=F,xaxt="n",yaxt="n",col=lineCol,xlim=c(beginDate,endDate))
+# 		}
+# 	mtext("Daily no. of beds in use",2,cex=1.7,line=6)
+# 	mtext("(Hundreds)",2,cex=1.7,line=4.3)
+# 	labDates <- as.Date(seq(beginDate,endDate,30))
+# 	axis(1,labDates,format(labDates,"%m/%e"),cex.axis=1.8,padj=.6,lwd=3)
+# 	axis(2,cex.axis=1.8,padj=-.6,lwd=3)
+# }
 
 plotInterventionScenario <- function(intervention.ref, simulation_duration,
     names=c("Hospitalization","Isolating Home Care","Non-isolating Care"),

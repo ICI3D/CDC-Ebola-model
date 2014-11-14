@@ -1,0 +1,14 @@
+div.pdf label {
+  display: inline-block;
+  width: 2em;
+  text-align: right;
+}
+
+div.pdf label:after {
+  content:" - "
+}
+
+div.pdf input {
+  width: 75px;
+  margin-bottom: 1px;
+}
