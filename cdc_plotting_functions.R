@@ -180,3 +180,9 @@ plotInterventionScenario <- function(intervention.ref, simulation_duration,
   p <- p + geom_area(aes(fill=treatment), position = 'stack') + scale_fill_manual(labels=names, values=col)
 }
 
+plotIntroductionScenario <- function(introduction.ref, simulation_duration) {
+  p <- ggplot(introduction.ref, aes(day, count)) + xlim(0,simulation_duration) + ylim(0, max(introduction.ref$count))
+  p <- p + geom_bar(stat="identity", width=1)
+  p
+}
+

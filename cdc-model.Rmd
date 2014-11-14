@@ -30,8 +30,16 @@ res <- reactive({
   ))
 })
 tabsetPanel(
-  tabPanel("Cumulative Incidence", renderPlot({ plotCumInc(res(), start=input$start_date, reporting_rate=input$reporting_rate) })),
-  tabPanel("Bed Occupancy", renderPlot({ plotBedOcc(res(), start=input$start_date, reporting_rate=input$reporting_rate) }))
+  tabPanel("Cumulative Incidence",
+    renderPlot({
+      plotCumInc(res(), start=input$start_date, reporting_rate=input$reporting_rate)
+    })
+  ),
+  tabPanel("Bed Occupancy",
+    renderPlot({
+      plotBedOcc(res(), start=input$start_date, reporting_rate=input$reporting_rate) 
+    })
+  )
 )
 ```
 
@@ -57,35 +65,37 @@ buildPDFPanel <- function(prefix, full,
 ) {
   sum_check_id <- paste0(prefix,"_pdf_sum")
   output[[sum_check_id]] <- renderText(sum(distros[[prefix]]()$pdf))
-  column(4,
+  column(4, div(class = "pdf",
+    h4(full," Period"),
     numericInput(
       paste0(prefix,"_period_max"),
-      paste0(full," Period Max (days)?"),
+      "max",
       min=1, max=absolute_pdf_day_max, value=def_period_max, step=1
-    ),
-    conditionalPanel("input.pdf_type == 'manual'", div(class = "pdf",
-      div(paste0("Total ", full," "), em("p: "), textOutput(sum_check_id, span)),
-      div(paste0("day - ", full," p")),
+    ), em("(days)"),
+    conditionalPanel("input.pdf_type == 'manual'",
+      div(tags$label("day"), em("p")," (total: ",textOutput(sum_check_id, em),")"),
       manualPDF(prefix)
-    )),
-    conditionalPanel("input.pdf_type == 'functional'",
-      selectInput(
+    ),
+    conditionalPanel("input.pdf_type === 'functional'",
+      div(selectInput(
         paste0(prefix,"_model"),
-        paste0(full," Distribution"),
+        "distribution",
         choices=choices, selected=def_model
-      ),
-      numericInput(
-        paste0(prefix,"_period_mean"),
-        paste0(full, " Period Mean (days)?"),
-        min=0.01, max=25, value=def_period_mean, step=0.01
-      ),
-      numericInput(
-        paste0(prefix,"_period_sd"),
-        paste0(full, " Period St.Dev (days)?"),
-        min=0.01, max=25, value=def_period_sd, step=0.01
+      )),
+      conditionalPanel(paste0("(input.", prefix, "_model === '", choices[1], "') || (input.", prefix, "_model === '", choices[2], "')"),
+        div(numericInput(
+          paste0(prefix,"_period_mean"),
+          "mean",
+          min=0.01, max=25, value=def_period_mean, step=0.01
+        ), em("(days)")),
+        div(numericInput(
+          paste0(prefix,"_period_sd"),
+          "std.dev.",
+          min=0.01, max=25, value=def_period_sd, step=0.01
+        ), em("(days)"))
       )
     )
-  )
+  ))
 }
 buildTreatmentCol <- function(prefix, defs, step, max, treatments = defaults$infective_treatments) {
   mapply(function(id, label, def) numericInput(id, label, min=0, step=step, max=max, value=def),
@@ -95,7 +105,7 @@ buildTreatmentCol <- function(prefix, defs, step, max, treatments = defaults$inf
     SIMPLIFY=F
   )
 }
-absolute_max_events <- 100
+absolute_max_events <- 50
 interventionInputs <- function() {
   lapply(
     1:absolute_max_events,
@@ -172,57 +182,59 @@ introduction_scenario <- reactive({
 })
 
 with(defaults, {
-  tabsetPanel(
-    tabPanel("General Parameters", inputPanel(
+  inputPanel(tabsetPanel(
+    tabPanel("General Parameters", div(class="gen",
       numericInput("N0","Initial Population (millions)?", value=N0/10^6, min=0.01, max=100, step=0.01),
       numericInput("simulation_duration","Simulation Duration (days)?", value=simulation_duration, min=1, max=365*2, step=1),
       dateInput("start_date","Outbreak state date (yyyy-mm-dd)?", min="2014-01-01", max="2014-12-31", value="2014-02-03"),
       numericInput("reporting_rate", "Case Reporting Rate?", min=0, value = 1/2.5, step=0.001)
     )),
-    tabPanel("Incubation and Infectious Distributions", inputPanel(
-      actionButton("reset_cdc", "Set to CDC defaults."),
-      actionButton("reset_leg", "Set to Legrand."),
-      actionButton("reset_eic", "Set to Eichner."),
-      radioButtons(
-        "pdf_type",
-        "Distribution Specification: ",
-        choices=c("manual","functional"), selected="manual",
-        inline=T
-      ),
+    tabPanel("Incubation and Infectious Distributions",
+      fixedRow(column(10,
+        actionButton("reset_cdc", "Set to CDC defaults."),
+        actionButton("reset_leg", "Set to Legrand."),
+        actionButton("reset_eic", "Set to Eichner."),
+        radioButtons(
+          "pdf_type",
+          "Distribution Mode: ",
+          choices=c("manual","functional"), selected="manual",
+          inline=T
+        )
+      )),
       fixedRow(
         buildPDFPanel("inc", "Incubation", inc_period_max, inc_model, inc_period_mean, inc_period_sd, choices),
         buildPDFPanel("inf", "Infectious", inf_period_max, inf_model, inf_period_mean, inf_period_sd, choices)
       )
-    )),
-    tabPanel("Treatment-Related Parameters", inputPanel(
+    ),
+    tabPanel("Treatment-Related Parameters",
       fixedRow(
         column(3,
-          renderText("Infection pressure from..."),
+          h4("Infection pressure from..."),
           buildTreatmentCol('tr_rate_', defaults$treatment_transmissions, step=0.01, max=10.0)
         ),
         column(3,
-          renderText("Hospital bed-days for..."),
+          h4("Hospital bed-days for..."),
           buildTreatmentCol('tr_dur_', defaults$treatment_durations, step=1, max=absolute_pdf_day_max)
         ),
         column(3,
-          renderText("Hospitalized Proportion for..."),
+          h4("Hospitalized Proportion for..."),
           buildTreatmentCol('tr_prop_', defaults$hosp_proportions, step=0.01, max=1.0)
         )
       )
-    )),
-    tabPanel("Scenario Parameters", inputPanel(
+    ),
+    tabPanel("Scenario Parameters",
       fixedRow(
         buildInterventionCol(),
         buildIntroductionCol()
       )
-    )),
-    tabPanel("Notes", renderText(
+    ),
+    tabPanel("Notes", div(
       "TODO: provide notes.  particularly, describe CDC 'distribution' computations, provide citations."
-      ), renderText(
+      ), div(
       "TODO: (1) turn on asymptomatic infection, (2) turn on mortality (and allow to affect governor)"
       )
     )
-  )
+  ))
 })
 ```
 
@@ -294,11 +306,12 @@ tabsetPanel(
     renderPlot(plotPeriodCDF(distros$inf()))
   ),
   tabPanel("Introductions",
-    renderTable(introduction_scenario(), inline=T),
-    renderText("TODO plot")
+    renderPlot({
+      p <- plotIntroductionScenario(introduction_scenario(), input$simulation_duration)
+      p
+    })
   ),
   tabPanel("Intervention Scenario",
-    renderTable(intervention_scenario(), inline=T),
     renderPlot({
       p <- plotInterventionScenario(intervention_scenario(), input$simulation_duration)
       p
