@@ -4,6 +4,11 @@
 
 invisible(library(ggplot2)); invisible(library(reshape2))
 
+dummyPlot <- function(n) {
+  ## placeholder plot used to mockout interface
+  plot(runif(n), runif(n), xlab="dummy in", ylab="dummy out")
+}
+
 plotPeriodCDF <- function(distro) {
   distro$pdf <- c(0, distro$pdf)
   distro$days <- c(distro$days, length(distro$days))
