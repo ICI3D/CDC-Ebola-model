@@ -1,11 +1,25 @@
 ## helper functions for constructing shiny apps
+nestedTabPanel <- function(title, ..., nested="left") {
+	tabPanel(title, tabsetPanel(..., position=nested))
+}
 
 inputTabPanel <- function(title, ...) {
   tabPanel(title, inputPanel(...))
 }
 
+validators <- list(
+	positive = function(what) return(list(
+		f = function(res) all(res >= 0),
+		msg = paste0(what, " not all positive.")
+	))
+)
+
 inputGroup <- function(prefix, suffix, labels=NULL, values, ..., id.sep="_", type=numericInput) {
   ids <- paste(prefix, suffix, sep = id.sep)
+  if (length(ids) != length(labels)) {
+  	stop(paste0("id and labels lengths do not match: ids ",length(ids)," vs labels ",length(labels),
+  							"\nother args: ", prefix, " ", suffix))
+  }
   mapply(type, ids, labels, values, MoreArgs = list(...), SIMPLIFY = F)
 }
 

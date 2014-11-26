@@ -9,11 +9,34 @@ runtime: shiny
 source("cdc_model_functions.R")
 source("cdc_plotting_functions.R")
 source("shiny-helpers.R")
-with(defaults, shinyUI(navbarPage("EbolaResponse Re-Implementation",
-  tabPanel("Results", tabsetPanel(
+makeVectorControl <- function(
+	prefix, suffix, labels=NULL, values, 
+	..., ## args to type
+	id.sep="_", type=numericInput, tests=list()
+) {
+	control <- inputGroup(prefix, suffix, labels, values, ..., id.sep=id.sep, type=type)
+	ids <- paste(prefix, suffix, sep = id.sep)
+	reactor <- reactive({
+		res <- sapply(ids, function(which) input[[which]])
+		validate(need(all(!sapply(res, is.null)), paste0(suffix," info incomplete.")))
+		for (test in tests) with(test, validate(need(f(res), msg)))
+		return(res)
+	})
+	return(list(control=control, reactor=reactor))
+}
+with(defaults, {
+transmission_rate <- makeVectorControl(
+  control_prefixes, "transmission_rate",
+  control_descriptions,
+  control_transmission_rates,
+  min = 0, step=0.01,
+  tests = list(validators$positive("tranmission rates"))
+)
+shinyUI(navbarPage("EbolaResponse Re-Implementation",
+  nestedTabPanel("Results",
     tabPanel("Symptomatic Individuals",
       renderPlot(dummyPlot(100)),
-      tags$caption("thing")
+      tags$caption("Plot Caption")
     ),
     tabPanel("Occupied Beds",
       renderPlot(dummyPlot(100))
@@ -27,10 +50,9 @@ with(defaults, shinyUI(navbarPage("EbolaResponse Re-Implementation",
     inputTabPanel("Display Options",
       radioButtons("option_1", "Option 1", choices = c('a','b'), inline = T),
       radioButtons("option_2", "Option 2", choices = c('a','b'), inline = T)
-    ),
-    position="left"
-  )),
-  tabPanel("Change Model Settings", tabsetPanel(
+    )
+  ),
+  nestedTabPanel("Change Model Settings",
     inputTabPanel("General",
       numericInput("population","Population", value=10, min=0.1, step=0.1),
       dateInput("start_date", "Start date", min="2014-01-01", max="2014-12-31", value="2014-02-03"),
@@ -38,12 +60,7 @@ with(defaults, shinyUI(navbarPage("EbolaResponse Re-Implementation",
     ),
     inputTabPanel("Transmission",
       h3("Per Capita Transmission Rate per Infectious Individual, by Treatment Setting:"),
-      inputGroup(
-        c("hosp","home","none"), "transmission",
-        c("Hospitalization", "Isolating Home Care","Other"),
-        treatment_transmissions,
-        min = 0, step=0.01
-      ),
+      transmission_rate$control,
       customizedInput(numericInput("beta_multiplier", "Transmission Coefficient Multiplier", value=1, min=0.01, step=0.01),
         mouseover = "This multiplier applies to all beta values.  The default value, 1, means that the transmission parameters are used directly.  A value of 2 means that all transmission rates are doubled, a value of 0.5 means that all rates are halved."
       )
@@ -51,13 +68,13 @@ with(defaults, shinyUI(navbarPage("EbolaResponse Re-Implementation",
     inputTabPanel("Incubation"
       #inputPDF("incubation")
     ),
-    inputTabPanel("Disease",
+    inputTabPanel("Disease"
       #inputPDF("infection"),
-      customizedInput(
-        probabilityInput("case_fatality_rate", "Case Fatality Rate", value=0.7),
-        mouseover = "The probability of dying from Ebola.",
-        units = '%'
-      )
+#       customizedInput(
+#         probabilityInput("case_fatality_rate", "Case Fatality Rate", value=0.7),
+#         mouseover = "The probability of dying from Ebola.",
+#         units = '%'
+#       )
     ),
     inputTabPanel("Treatment",
       h3("Effective Bed-Days, by Treatment Setting:"),
@@ -74,9 +91,15 @@ with(defaults, shinyUI(navbarPage("EbolaResponse Re-Implementation",
         hosp_proportions,
         type = probabilityInput
       )
-    ),
-    position="left"
-  )),
-  tabPanel("Model Description & Assumptions")
-)))
+    )
+  ),
+  nestedTabPanel("Model Description & Assumptions",
+  	tabPanel("Overall", includeMarkdown("transmission.md")),
+  	tabPanel("Transmission", includeMarkdown("transmission.md")),
+  	tabPanel("Incubation", includeMarkdown("incubation.md")),
+  	tabPanel("Disease"),
+  	tabPanel("Treatment Logistics")
+  )
+))
+})
 ```

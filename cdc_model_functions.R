@@ -233,6 +233,17 @@ defaults <- list(
 	inc_period_mean = 6.3,
 	inc_period_sd = 3.31,
 	inc_period_max = 25,
+	control_prefixes = c("h","c","n"),
+	control_descriptions = c(
+		h = "ETU",
+		c = "Isolating Community Care",
+		n = "None"
+	),
+	control_transmission_rates = c(     # the transmission rates by control setting
+		h = 0.02,
+		c = 0.03,
+		n = 0.3
+	),
 	infective_treatments = c(         # the treatment options
 		hospital = "Hospital",
 		other_isolating_care = "Other Isolating Care",
