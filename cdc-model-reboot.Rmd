@@ -32,6 +32,21 @@ transmission_rate <- makeVectorControl(
   min = 0, step=0.01,
   tests = list(validators$positive("tranmission rates"))
 )
+stay_durations <- makeVectorControl(
+  control_prefixes, "stay_duration",
+  control_descriptions,
+  control_durations,
+  min = 0, step=1,
+  tests = list(validators$positive("durations"), validators$integers("durations"))
+)
+hospitalization_rate <- makeVectorControl(
+  control_prefixes, "hospitalization_rate",
+  control_descriptions,
+  control_hospitalization_rates,
+  min = 0, step=0.01,
+  type = probabilityInput,
+  tests = list(validators$positive("hospitalization rates"))
+)
 shinyUI(navbarPage("EbolaResponse Re-Implementation",
   nestedTabPanel("Results",
     tabPanel("Symptomatic Individuals",
@@ -68,29 +83,19 @@ shinyUI(navbarPage("EbolaResponse Re-Implementation",
     inputTabPanel("Incubation"
       #inputPDF("incubation")
     ),
-    inputTabPanel("Disease"
+    inputTabPanel("Disease",
       #inputPDF("infection"),
-#       customizedInput(
-#         probabilityInput("case_fatality_rate", "Case Fatality Rate", value=0.7),
-#         mouseover = "The probability of dying from Ebola.",
-#         units = '%'
-#       )
+      customizedInput(
+        probabilityInput("case_fatality_rate", "Case Fatality Rate", value=0.7),
+        mouseover = "The probability of dying from Ebola.",
+        units = '%'
+      )
     ),
     inputTabPanel("Treatment",
       h3("Effective Bed-Days, by Treatment Setting:"),
-      inputGroup(
-        c("hosp","home","none"), "occupancy",
-        c("Hospitalization", "Isolating Home Care","Other"),
-        treatment_durations,
-        min = 0, step=1
-      ),
+      stay_durations$control,
       h3("Proportion Requiring Hospitalization, by Treatment Setting:"),
-      inputGroup(
-        c("hosp","home","none"), "hosp_proportion",
-        c("Hospitalization", "Isolating Home Care","Other"),
-        hosp_proportions,
-        type = probabilityInput
-      )
+      hospitalization_rate$control
     )
   ),
   nestedTabPanel("Model Description & Assumptions",

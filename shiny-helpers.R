@@ -11,7 +11,11 @@ validators <- list(
 	positive = function(what) return(list(
 		f = function(res) all(res >= 0),
 		msg = paste0(what, " not all positive.")
-	))
+	)),
+  integers = function(what) return(list(
+    f = function(res) all.equal(res, as.integer(res), check.attributes = F),
+    msg = paste0(what, " not all integers.")
+  ))
 )
 
 inputGroup <- function(prefix, suffix, labels=NULL, values, ..., id.sep="_", type=numericInput) {

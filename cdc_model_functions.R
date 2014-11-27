@@ -244,6 +244,16 @@ defaults <- list(
 		c = 0.03,
 		n = 0.3
 	),
+	control_durations = c(         # the stay duration by treatment option
+	  h = 12,
+	  c = 7,
+	  n = 4
+	),
+	control_hospitalization_rates = c(
+	  h = 1,
+	  c = 0.5,
+	  n = 0.2	
+	),
 	infective_treatments = c(         # the treatment options
 		hospital = "Hospital",
 		other_isolating_care = "Other Isolating Care",
