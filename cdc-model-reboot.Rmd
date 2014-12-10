@@ -3,51 +3,95 @@ output:
   html_document:
     self_contained: yes
     smart: yes
+    css: styles-reboot.css
 runtime: shiny
 ---
 ```{r, echo=FALSE}
 source("cdc_model_functions.R")
 source("cdc_plotting_functions.R")
 source("shiny-helpers.R")
-makeVectorControl <- function(
-	prefix, suffix, labels=NULL, values, 
-	..., ## args to type
-	id.sep="_", type=numericInput, tests=list()
-) {
-	control <- inputGroup(prefix, suffix, labels, values, ..., id.sep=id.sep, type=type)
-	ids <- paste(prefix, suffix, sep = id.sep)
-	reactor <- reactive({
-		res <- sapply(ids, function(which) input[[which]])
-		validate(need(all(!sapply(res, is.null)), paste0(suffix," info incomplete.")))
-		for (test in tests) with(test, validate(need(f(res), msg)))
-		return(res)
-	})
-	return(list(control=control, reactor=reactor))
-}
+source("pauseable.R")
+
 with(defaults, {
+
 transmission_rate <- makeVectorControl(
   control_prefixes, "transmission_rate",
-  control_descriptions,
-  control_transmission_rates,
+  control_descriptions, control_transmission_rates,
   min = 0, step=0.01,
   tests = list(validators$positive("tranmission rates"))
 )
 stay_durations <- makeVectorControl(
   control_prefixes, "stay_duration",
-  control_descriptions,
-  control_durations,
+  control_descriptions, control_durations,
   min = 0, step=1,
   tests = list(validators$positive("durations"), validators$integers("durations"))
 )
 hospitalization_rate <- makeVectorControl(
   control_prefixes, "hospitalization_rate",
-  control_descriptions,
-  control_hospitalization_rates,
-  min = 0, step=0.01,
+  control_descriptions, control_hospitalization_rates,
   type = probabilityInput,
   tests = list(validators$positive("hospitalization rates"))
 )
-shinyUI(navbarPage("EbolaResponse Re-Implementation",
+
+infection_pdf <- inputIntervalPDF('infection', 6)
+
+# infection_pdf <- list(control=NULL, reactor = function() {
+# 	defaults$I_day_PDF
+# })
+# incubation_pdf <- list(control=NULL, reactor = function() {
+# 	defaults$E_day_PDF
+# })
+# output$incubation_download <- downloadHandler(
+# 	filename='incubation_pdf.csv', contentType = 'text/csv', content = function(file) {
+# 	  pdf <- defaults$E_day_PDF
+# 	  res <- data.frame(pdf=pdf)
+# 	  write.table(res, file, row.names=F, col.names=F)
+# })
+# 
+# incubation_pdf_file_warning <- reactive({
+# 	if(!is.null(input$incubation_upload)) {
+# 		inputFile <- input$incubation_upload$datapath
+# 		src <- drop(as.matrix(read.table(inputFile, header = F)))
+# 		if (is.numeric(src)) {
+# 			if (sum(src) == 1) {
+# 				## pause pdf updating?
+# 				## updateRadioButtons(session, incubation_pdf_type, selected="manual")
+# 				## set incubation to manual
+# 				## updateNumericInput(session, incubation_pdf_max, value=length(src))
+# 				## set incubation max to length
+# 				## for i in 1 to length, set inc_day_i to data[i]
+# 				## unpause pdf updating
+# 				''
+# 			} else {
+# 				'pdf does not sum to 1.'
+# 			}
+# 		} else {
+# 			'did not provide numeric data.'
+# 		}
+# 	} else {
+# 		''
+# 	}
+# })
+
+# simulation <- reactive({
+# 	sim_duration <- input$simulation_duration ## TODO validate
+# 	N0 <- defaults$N0
+#   simulate(list(
+#     infective_treatments = defaults$infective_treatments,
+#     treatment_durations = stay_durations$reactor(),
+#     simulation_duration = sim_duration,
+#     treatment_distribution = defaults$treatment_distribution, #yield_intervention(intervention_scenario()),
+#     introductions = defaults$introductions, # yield_introduction(introduction_scenario()), 
+#     treatment_transmissions = transmission_rate$reactor(),
+#     hosp_proportions = hospitalization_rate$reactor(),
+#     E_day_PDF = incubation_PDF$reactor(),
+#     I_day_PDF = infection_PDF$reactor(),
+#     N0 = N0
+#   ))
+# })
+# 	
+
+shinyUI(navbarPage("EbolaResponse v2",
   nestedTabPanel("Results",
     tabPanel("Symptomatic Individuals",
       renderPlot(dummyPlot(100)),
@@ -61,49 +105,72 @@ shinyUI(navbarPage("EbolaResponse Re-Implementation",
     ),
     tabPanel("Cumulative Mortality",
       renderPlot(dummyPlot(100))
-    ),
-    inputTabPanel("Display Options",
-      radioButtons("option_1", "Option 1", choices = c('a','b'), inline = T),
-      radioButtons("option_2", "Option 2", choices = c('a','b'), inline = T)
     )
+#     ,
+#     inputTabPanel("Display Options",
+#       radioButtons("option_1", "Option 1", choices = c('a','b'), inline = T),
+#       radioButtons("option_2", "Option 2", choices = c('a','b'), inline = T)
+#     )
   ),
   nestedTabPanel("Change Model Settings",
     inputTabPanel("General",
-      numericInput("population","Population", value=10, min=0.1, step=0.1),
-      dateInput("start_date", "Start date", min="2014-01-01", max="2014-12-31", value="2014-02-03"),
-      numericInput("simulation_duration", "Simulation Duration", value=300, min=1, step=1)
+    	customizeInput(
+    		numericInput, "population","Population", value=10, min=0.1, step=0.1,
+    		mouseover="The initial susceptible population.", units="millions"
+    	),
+      customizeInput(
+      	dateInput, "start_date", "Start date", min="2014-01-01", max="2014-12-31", value="2014-02-03",
+      	mouseover="The reference start date for initial incubation.", units="YYYY-MM-DD"
+      ),
+      customizeInput(
+      	numericInput, "simulation_duration", "Simulation Duration", value=300, min=1, step=1,
+      	mouseover="The number of days considered in the simulation.", units="days"
+      )
     ),
     inputTabPanel("Transmission",
-      h3("Per Capita Transmission Rate per Infectious Individual, by Treatment Setting:"),
+      h3("New Ebola Cases produced per capita-day from Infectious Individuals, by Treatment Setting:", title = "TODO"),
       transmission_rate$control,
-      customizedInput(numericInput("beta_multiplier", "Transmission Coefficient Multiplier", value=1, min=0.01, step=0.01),
+      customizeInput(
+      	numericInput, "beta_multiplier", "Transmission Coefficient Multiplier", value=1, min=0.01, step=0.01,
         mouseover = "This multiplier applies to all beta values.  The default value, 1, means that the transmission parameters are used directly.  A value of 2 means that all transmission rates are doubled, a value of 0.5 means that all rates are halved."
       )
     ),
-    inputTabPanel("Incubation"
-      #inputPDF("incubation")
+    inputTabPanel("Incubation",
+      #inputPDF("incubation"),
+      inputCSV('incubation_upload', "Upload a file to fill in manual distribution."),
+      div(renderText(incubation_pdf_file_warning()), class="warning"),
+      view = renderPlot(plotIntervalDistribution(incubation_pdf$reactor())),
+      download = "incubation_download"
     ),
-    inputTabPanel("Disease",
+    inputTabPanelSolid("Disease",
       #inputPDF("infection"),
-      customizedInput(
-        probabilityInput("case_fatality_rate", "Case Fatality Rate", value=0.7),
+      infection_pdf$control,
+      customizeInput(
+        probabilityInput, "case_fatality_rate", "Case Fatality Rate", value=0.7,
         mouseover = "The probability of dying from Ebola.",
         units = '%'
+      ),
+      customizeInput(
+        probabilityInput, "asymptomatic_rate", "Asymptomatic Infection Rate", value=0.0,
+        mouseover = "The probability of asymptomatic, immunizing exposure.",
+        units = '%'
       )
+      #, view = renderPlot(plotIntervalDistribution(infection_pdf$reactor()))
     ),
     inputTabPanel("Treatment",
-      h3("Effective Bed-Days, by Treatment Setting:"),
+      h3("Effective Bed-Days, by Treatment Setting:", title = "TODO"),
       stay_durations$control,
-      h3("Proportion Requiring Hospitalization, by Treatment Setting:"),
+      renderPrint(stay_durations$reactor()),
+      h3("Proportion Requiring Hospitalization, by Treatment Setting:", title = "TODO"),
       hospitalization_rate$control
     )
   ),
   nestedTabPanel("Model Description & Assumptions",
-  	tabPanel("Overall", includeMarkdown("transmission.md")),
+  	tabPanel("Overall", includeMarkdown("overall.md")),
   	tabPanel("Transmission", includeMarkdown("transmission.md")),
   	tabPanel("Incubation", includeMarkdown("incubation.md")),
-  	tabPanel("Disease"),
-  	tabPanel("Treatment Logistics")
+  	tabPanel("Disease", includeMarkdown("disease.md")),
+  	tabPanel("Treatment Logistics", includeMarkdown("treatment.md"))
   )
 ))
 })
