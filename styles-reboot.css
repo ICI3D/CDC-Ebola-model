@@ -1,0 +1,8 @@
+label[data-units]::after {
+  content: " ("attr(data-units)")";
+  font-style: italic;
+}
+
+.pdf_panel {
+	width: 100%;
+}
