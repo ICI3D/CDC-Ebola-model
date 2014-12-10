@@ -20,6 +20,9 @@ erlang_params <- function(mean, sd) {
 	return(list(shape=k, rate = lambda))
 }
 
+cdf_to_pdf <- function(cdf) return(cdf[-1]-head(cdf, -1))
+pdf_to_cdf <- function(pdf) return(cumsum(pdf))
+
 distribution <- function(model, period_max, ...) with(list(...), {
 	mod <- switch(model, ## select/parameterize cdf based on requested model
     lnorm = list(cdf=plnorm, params = lnorm_params(period_mean, period_sd)),

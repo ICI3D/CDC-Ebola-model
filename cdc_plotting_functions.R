@@ -6,7 +6,16 @@ invisible(library(ggplot2)); invisible(library(reshape2))
 
 dummyPlot <- function(n) {
   ## placeholder plot used to mockout interface
-  plot(runif(n), runif(n), xlab="dummy in", ylab="dummy out")
+	ggplot(data.frame(x=runif(n), y=runif(n)), aes(x = x, y = y)) + geom_point() + theme_bw()
+}
+
+plotIntervalDistribution <- function(pdf = cdf_to_pdf(cdf), cdf = pdf_to_cdf(pdf)) {
+	pdf.df <- data.frame(day=1:length(pdf), value = pdf, type = factor("pdf",levels=c("pdf","cdf")))
+	cdf.df <- data.frame(day=1:length(pdf), value = cdf, type = factor("cdf",levels=c("pdf","cdf")))
+	p <- ggplot(rbind(pdf.df, cdf.df), aes(x=day, y=value))
+	p <- p + theme_bw() + theme_update(panel.background = element_blank(), panel.border=element_blank())
+	p <- p + facet_grid(type ~ ., scales="free") + geom_bar(fill="lightblue", width=.95, stat="identity")
+	p
 }
 
 plotPeriodCDF <- function(distro) {
